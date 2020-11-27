@@ -1,5 +1,6 @@
 package protocols.statemachine;
 
+import org.apache.commons.lang3.tuple.Pair;
 import protocols.agreement.notifications.JoinedNotification;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
@@ -16,12 +17,10 @@ import protocols.agreement.requests.ProposeRequest;
 import protocols.statemachine.notifications.ExecuteNotification;
 import protocols.statemachine.requests.OrderRequest;
 
-import java.io.IOException;
+import java.io.*;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 
 /**
  * This is NOT fully functional StateMachine implementation.
@@ -126,7 +125,8 @@ public class StateMachine extends GenericProtocol {
             //Also do something starter, we don't want an infinite number of instances active
         	//Maybe you should modify what is it that you are proposing so that you remember that this
         	//operation was issued by the application (and not an internal operation, check the uponDecidedNotification)
-            sendRequest(new ProposeRequest(nextInstance++, request.getOpId(), request.getOperation()),
+
+            sendRequest(new ProposeRequest(nextInstance++, serializeOp(request.getOpId(), request.getOperation())),
                     IncorrectAgreement.PROTOCOL_ID);
         }
     }
@@ -137,7 +137,9 @@ public class StateMachine extends GenericProtocol {
         //Maybe we should make sure operations are executed in order?
         //You should be careful and check if this operation if an application operation (and send it up)
         //or if this is an operations that was executed by the state machine itself (in which case you should execute)
-        triggerNotification(new ExecuteNotification(notification.getOpId(), notification.getOperation()));
+
+        Pair<UUID, byte[]> operation = deserializeOp(notification.getOperation());
+        triggerNotification(new ExecuteNotification(operation.getLeft(), operation.getRight()));
     }
 
     /*--------------------------------- Messages ---------------------------------------- */
@@ -170,5 +172,37 @@ public class StateMachine extends GenericProtocol {
     private void uponInConnectionDown(InConnectionDown event, int channelId) {
         logger.trace("Connection from {} is down, cause: {}", event.getNode(), event.getCause());
     }
+
+    /*--------------------------------- Auxiliary --------------------------------------- */
+
+    private byte[] serializeOp(UUID opId, byte[] op) {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(bos);
+        try {
+            dos.writeLong(opId.getMostSignificantBits());
+            dos.writeLong(opId.getLeastSignificantBits());
+            dos.writeInt(op.length);
+            dos.write(op);
+            return bos.toByteArray();
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new AssertionError();
+        }
+    }
+    private Pair<UUID, byte[]> deserializeOp(byte[] operation) {
+        ByteArrayInputStream bis = new ByteArrayInputStream(operation);
+        DataInputStream dis = new DataInputStream(bis);
+        try {
+            long mostSignificantBits = dis.readLong();
+            long leastSignificantBits = dis.readLong();
+            UUID opId = new UUID(mostSignificantBits, leastSignificantBits);
+            byte[] op = new byte[dis.readInt()];
+            return Pair.of(opId, op);
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new AssertionError();
+        }
+    }
+
 
 }

@@ -6,48 +6,31 @@ import java.util.UUID;
 public class PaxosState {
 
     private int n;
-    private UUID opId;
-    private byte[] op;
+    private byte[] v;
 
-    public PaxosState(int n, UUID opId, byte[] op) {
+    public PaxosState(int n, byte[] v) {
         this.n = n;
-        this.opId = opId;
-        this.op = op;
+        this.v = v;
     }
 
     public PaxosState(int n) {
         this.n = n;
-        this.opId = null;
+        this.v = null;
     }
 
     public int getN() {
         return n;
     }
 
-    public UUID getOpId() {
-        return opId;
-    }
-
-    public byte[] getOp() {
-        return op;
-    }
-
     public void setN(int n) {
         this.n = n;
     }
 
-    public void setOp(UUID opId, byte[] op) {
-        this.opId = opId;
-        this.op = op;
+    public byte[] getV() {
+        return v;
     }
 
-    @Override
-    public String toString() {
-        return "PaxosState{" +
-                "n=" + n +
-                ", opId=" + opId +
-                ", op=" + Arrays.toString(op) +
-                '}';
+    public void setV(byte[] v) {
+        this.v = v;
     }
-
 }

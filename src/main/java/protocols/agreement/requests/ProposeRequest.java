@@ -10,13 +10,11 @@ public class ProposeRequest extends ProtoRequest {
     public static final short REQUEST_ID = 101;
 
     private final int instance;
-    private final UUID opId;
     private final byte[] operation;
 
-    public ProposeRequest(int instance, UUID opId, byte[] operation) {
+    public ProposeRequest(int instance, byte[] operation) {
         super(REQUEST_ID);
         this.instance = instance;
-        this.opId = opId;
         this.operation = operation;
     }
 
@@ -28,15 +26,10 @@ public class ProposeRequest extends ProtoRequest {
         return operation;
     }
 
-    public UUID getOpId() {
-        return opId;
-    }
-
     @Override
     public String toString() {
         return "ProposeRequest{" +
                 "instance=" + instance +
-                ", opId=" + opId +
                 ", operation=" + Hex.encodeHexString(operation) +
                 '}';
     }

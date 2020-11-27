@@ -13,7 +13,6 @@ import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
-import pt.unl.fct.di.novasys.channel.tcp.events.*;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 import java.io.IOException;
@@ -89,13 +88,13 @@ public class Paxos extends GenericProtocol {
 
         if (msg.getN() > instance.getN()) {
             instance.setN(msg.getN());
-            sendMessage(new PromiseMessage(msg.getIns(), msg.getN(), instance.getOpId(), instance.getOp()), from);
+            sendMessage(new PromiseMessage(msg.getIns(), msg.getN(), instance.getV()), from);
         }
         //TODO: else send NACK? (optimization)
     }
 
     private void uponPromise(PrepareMessage msg, Host from, short sourceProto, int channelId) {
-        
+
     }
 
     private void uponAccept(PrepareMessage msg, Host from, short sourceProto, int channelId) {
