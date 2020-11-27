@@ -95,7 +95,7 @@ public class Paxos extends GenericProtocol {
 
         if (msg.getN() > instance.getN()) {
             instance.setN(msg.getN());
-            sendMessage(new PromiseMessage(msg.getIns(), msg.getN(), instance.getV()), from);
+            sendMessage(new PromiseMessage(msg.getIns(), msg.getN(), instance.getOpId(), instance.getOp()), from);
         }
         //TODO: else send NACK? (optimization)
     }

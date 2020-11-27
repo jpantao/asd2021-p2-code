@@ -37,9 +37,9 @@ public class PrepareMessage extends ProtoMessage {
 
     public static ISerializer<PrepareMessage> serializer = new ISerializer<PrepareMessage>() {
         @Override
-        public void serialize(PrepareMessage prepareMessage, ByteBuf byteBuf) throws IOException {
-            byteBuf.writeInt(prepareMessage.ins);
-            byteBuf.writeInt(prepareMessage.n);
+        public void serialize(PrepareMessage msg, ByteBuf byteBuf) throws IOException {
+            byteBuf.writeInt(msg.ins);
+            byteBuf.writeInt(msg.n);
         }
 
         @Override
