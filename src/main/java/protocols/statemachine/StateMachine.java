@@ -23,7 +23,7 @@ import java.net.UnknownHostException;
 import java.util.*;
 
 /**
- * This is NOT fully functional StateMachine implementation.
+ * This is NOT a fully functional StateMachine implementation.
  * This is simply an example of things you can do, and can be used as a starting point.
  *
  * You are free to change/delete anything in this class, including its fields.
@@ -151,6 +151,7 @@ public class StateMachine extends GenericProtocol {
     /* --------------------------------- TCPChannel Events ---------------------------- */
     private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
         logger.info("Connection to {} is up", event.getNode());
+
     }
 
     private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
