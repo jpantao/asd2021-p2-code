@@ -1,0 +1,6 @@
+2020-11-26 15:06:11:382 0 sec: 0 operations; est completion in 0 second 
+2020-11-26 15:06:16:362 5 sec: 14635 operations; 2922.91 current ops/sec; est completion in 1 minute [READ AverageLatency(us)=280.5] [UPDATE AverageLatency(us)=330.89] 
+2020-11-26 15:06:21:369 10 sec: 35362 operations; 4140.43 current ops/sec; est completion in 1 minute [READ AverageLatency(us)=224.33] [UPDATE AverageLatency(us)=251.66] 
+2020-11-26 15:06:26:364 15 sec: 56926 operations; 4316.25 current ops/sec; est completion in 1 minute [READ AverageLatency(us)=219.95] [UPDATE AverageLatency(us)=238.33] 
+2020-11-26 15:06:31:356 20 sec: 78921 operations; 4406.05 current ops/sec; est completion in 57 seconds [READ AverageLatency(us)=214.96] [UPDATE AverageLatency(us)=231.66] 
+2020-11-26 15:06:36:359 25 sec: 100159 operations; 4245.9 current ops/sec; est completion in 50 seconds [READ AverageLatency(us)=222.5] [UPDATE AverageLatency(us)=243.91] 
