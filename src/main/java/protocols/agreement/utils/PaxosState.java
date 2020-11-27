@@ -1,7 +1,5 @@
 package protocols.agreement.utils;
 
-import java.util.Arrays;
-import java.util.UUID;
 
 public class PaxosState {
 
