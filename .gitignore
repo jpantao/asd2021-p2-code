@@ -346,3 +346,5 @@ buildNumber.properties
 
 # End of https://www.toptal.com/developers/gitignore/api/java,maven,vscode,intellij,jetbrains,jetbrains+iml,jetbrains+all,git
 
+
+pom.xml
