@@ -70,12 +70,6 @@ public class Paxos extends GenericProtocol {
 
         /*---------------------- Register Timer Handlers --------------------------- */
 
-        /*---------------------- Register Channel Events --------------------------- */
-        registerChannelEventHandler(channelId, OutConnectionDown.EVENT_ID, this::uponOutConnectionDown);
-        registerChannelEventHandler(channelId, OutConnectionFailed.EVENT_ID, this::uponOutConnectionFailed);
-        registerChannelEventHandler(channelId, OutConnectionUp.EVENT_ID, this::uponOutConnectionUp);
-        registerChannelEventHandler(channelId, InConnectionUp.EVENT_ID, this::uponInConnectionUp);
-        registerChannelEventHandler(channelId, InConnectionDown.EVENT_ID, this::uponInConnectionDown);
     }
 
     @Override
@@ -102,8 +96,6 @@ public class Paxos extends GenericProtocol {
 
     private void uponPromise(PrepareMessage msg, Host from, short sourceProto, int channelId) {
         
-
-
     }
 
     private void uponAccept(PrepareMessage msg, Host from, short sourceProto, int channelId) {
@@ -119,32 +111,7 @@ public class Paxos extends GenericProtocol {
         //If a message fails to be sent, for whatever reason, log the message and the reason
         logger.error("Message {} to {} failed, reason: {}", msg, host, throwable);
     }
+
     /* -------------------------------- Timers ------------------------------------- */
-
-    /* -------------------------------- TCPChannel Events ------------------------- */
-
-    private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
-        logger.debug("Connection to {} is up", event.getNode());
-
-    }
-
-    private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
-        logger.trace("Connection to {} is down cause {}", event.getNode(), event.getCause());
-
-    }
-
-
-    private void uponOutConnectionFailed(OutConnectionFailed<ProtoMessage> event, int channelId) {
-        logger.trace("Connection to {} failed, reason: {}", event.getNode(), event.getCause());
-
-    }
-
-    private void uponInConnectionUp(InConnectionUp event, int channelId) {
-        logger.trace("Connection from {} is up", event.getNode());
-    }
-
-    private void uponInConnectionDown(InConnectionDown event, int channelId) {
-        logger.trace("Connection from {} is down, cause: {}", event.getNode(), event.getCause());
-    }
 
 }
