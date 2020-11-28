@@ -4,10 +4,12 @@ package protocols.agreement;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.agreement.messages.AcceptMessage;
-import protocols.agreement.messages.AcceptedMessage;
+import protocols.agreement.messages.AcceptOkMessage;
 import protocols.agreement.messages.PrepareMessage;
-import protocols.agreement.messages.PromiseMessage;
+import protocols.agreement.messages.PrepareOkMessage;
 import protocols.agreement.requests.ProposeRequest;
+import protocols.agreement.timers.AcceptTimer;
+import protocols.agreement.timers.PrepareTimer;
 import protocols.agreement.utils.PaxosState;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
@@ -32,13 +34,18 @@ public class Paxos extends GenericProtocol {
 
     private final Map<Integer, PaxosState> instances;
     private final Set<Host> membership;
+    private int n;
+    private int biggest_n;
+    private final int prepareTimeout;
+    private final int acceptTimeout;
 
 
     public Paxos(Properties props, Host self) throws IOException, HandlerRegistrationException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
-
         this.self = self;
-
+        this.n = Integer.parseInt(props.getProperty("n"));
+        this.prepareTimeout = Integer.parseInt(props.getProperty("prepare_timeout"));
+        this.acceptTimeout = Integer.parseInt(props.getProperty("accept_timeout"));
         this.membership = new HashSet<>();
         this.instances = new HashMap<>();
 
@@ -57,19 +64,22 @@ public class Paxos extends GenericProtocol {
 
         /*---------------------- Register Message Serializers ---------------------- */
         registerMessageSerializer(channelId, PrepareMessage.MSG_ID, PrepareMessage.serializer);
-        registerMessageSerializer(channelId, PromiseMessage.MSG_ID, PromiseMessage.serializer);
+        registerMessageSerializer(channelId, PrepareOkMessage.MSG_ID, PrepareOkMessage.serializer);
         registerMessageSerializer(channelId, AcceptMessage.MSG_ID, AcceptMessage.serializer);
-        registerMessageSerializer(channelId, AcceptedMessage.MSG_ID, AcceptedMessage.serializer);
+        registerMessageSerializer(channelId, AcceptOkMessage.MSG_ID, AcceptOkMessage.serializer);
 
         /*---------------------- Register Message Handlers ------------------------- */
         registerMessageHandler(channelId, PrepareMessage.MSG_ID, this::uponPrepare, this::uponMsgFail);
-        registerMessageHandler(channelId, PromiseMessage.MSG_ID, this::uponPromise, this::uponMsgFail);
+        registerMessageHandler(channelId, PrepareOkMessage.MSG_ID, this::uponPrepareOk, this::uponMsgFail);
         registerMessageHandler(channelId, AcceptMessage.MSG_ID, this::uponAccept, this::uponMsgFail);
-        registerMessageHandler(channelId, AcceptedMessage.MSG_ID, this::uponAccepted, this::uponMsgFail);
+        registerMessageHandler(channelId, AcceptOkMessage.MSG_ID, this::uponAcceptOk, this::uponMsgFail);
 
         /*---------------------- Register Timer Handlers --------------------------- */
+        registerTimerHandler(PrepareTimer.TIMER_ID, this::uponPrepareTimeout);
+        registerTimerHandler(AcceptTimer.TIMER_ID, this::uponAcceptTimeout);
 
     }
+
 
     @Override
     public void init(Properties props) throws HandlerRegistrationException, IOException {
@@ -78,22 +88,31 @@ public class Paxos extends GenericProtocol {
 
     /*--------------------------------- Requests ----------------------------------- */
     private void uponPropose(ProposeRequest request, short sourceProto) {
-        //TODO: complete propose logic
+        //TODO: verify propose logic
+        int instance = request.getInstance();
+        instances.put(instance, new PaxosState(n, request.getOperation()));
+        n += membership.size();
+        for (Host p : membership)
+            sendMessage(new PrepareMessage(instance, n), p);
+        setupTimer(new PrepareTimer(instance), prepareTimeout);
     }
 
     /*--------------------------------- Messages ----------------------------------- */
 
     private void uponPrepare(PrepareMessage msg, Host from, short sourceProto, int channelId) {
-        PaxosState instance = instances.get(msg.getIns());
-
-        if (msg.getN() > instance.getN()) {
-            instance.setN(msg.getN());
-            sendMessage(new PromiseMessage(msg.getIns(), msg.getN(), instance.getV()), from);
+        int instance = msg.getInstance();
+        PaxosState state = instances.get(instance);
+        if (state == null) {
+            state = instances.put(instance, new PaxosState(n));
+        }
+        if (msg.getN() > state.getN()){
+            state.setN(msg.getN());
+            sendMessage(new PrepareOkMessage(instance, ));
         }
         //TODO: else send NACK? (optimization)
     }
 
-    private void uponPromise(PrepareMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponPrepareOk(PrepareMessage msg, Host from, short sourceProto, int channelId) {
 
     }
 
@@ -101,9 +120,18 @@ public class Paxos extends GenericProtocol {
 
     }
 
-    private void uponAccepted(PrepareMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponAcceptOk(PrepareMessage msg, Host from, short sourceProto, int channelId) {
 
     }
+
+    private void uponAcceptTimeout(AcceptTimer acceptTimer, long timerId) {
+
+    }
+
+
+    private void uponPrepareTimeout(PrepareTimer prepareTimer, long timerId) {
+    }
+
 
     private void uponMsgFail(ProtoMessage msg, Host host, short destProto,
                              Throwable throwable, int channelId) {

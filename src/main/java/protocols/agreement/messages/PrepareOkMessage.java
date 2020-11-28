@@ -7,14 +7,14 @@ import pt.unl.fct.di.novasys.network.ISerializer;
 
 import java.io.IOException;
 
-public class PromiseMessage extends ProtoMessage {
+public class PrepareOkMessage extends ProtoMessage {
     public final static short MSG_ID = 112;
 
     private final int ins;
     private final int n;
     private final byte[] v;
 
-    public PromiseMessage(int ins, int n, byte[] v) {
+    public PrepareOkMessage(int ins, int n, byte[] v) {
         super(MSG_ID);
         this.ins = ins;
         this.n = n;
@@ -42,9 +42,9 @@ public class PromiseMessage extends ProtoMessage {
                 '}';
     }
 
-    public static ISerializer<PromiseMessage> serializer = new ISerializer<PromiseMessage>() {
+    public static ISerializer<PrepareOkMessage> serializer = new ISerializer<PrepareOkMessage>() {
         @Override
-        public void serialize(PromiseMessage msg, ByteBuf byteBuf) throws IOException {
+        public void serialize(PrepareOkMessage msg, ByteBuf byteBuf) throws IOException {
             if (msg.v != null) {
                 byteBuf.writeBoolean(true);
                 byteBuf.writeInt(msg.v.length);
@@ -58,7 +58,7 @@ public class PromiseMessage extends ProtoMessage {
         }
 
         @Override
-        public PromiseMessage deserialize(ByteBuf byteBuf) throws IOException {
+        public PrepareOkMessage deserialize(ByteBuf byteBuf) throws IOException {
             byte[] v = null;
             if(byteBuf.readBoolean()){
                 v = new byte[byteBuf.readInt()];
@@ -67,7 +67,7 @@ public class PromiseMessage extends ProtoMessage {
 
             int ins = byteBuf.readInt();
             int n = byteBuf.readInt();
-            return new PromiseMessage(ins, n, v);
+            return new PrepareOkMessage(ins, n, v);
         }
     };
 }

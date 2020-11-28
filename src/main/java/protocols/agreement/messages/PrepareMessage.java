@@ -19,7 +19,7 @@ public class PrepareMessage extends ProtoMessage {
         this.n = n;
     }
 
-    public int getIns() {
+    public int getInstance() {
         return ins;
     }
 
