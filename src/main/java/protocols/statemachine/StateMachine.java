@@ -2,6 +2,8 @@ package protocols.statemachine;
 
 import org.apache.commons.lang3.tuple.Pair;
 import protocols.agreement.notifications.JoinedNotification;
+import protocols.agreement.requests.RemoveReplicaRequest;
+import protocols.statemachine.timers.RetryConnTimer;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
@@ -10,7 +12,6 @@ import pt.unl.fct.di.novasys.channel.tcp.events.*;
 import pt.unl.fct.di.novasys.network.data.Host;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import protocols.agreement.IncorrectAgreement;
 import protocols.statemachine.notifications.ChannelReadyNotification;
 import protocols.agreement.notifications.DecidedNotification;
 import protocols.agreement.requests.ProposeRequest;
@@ -25,12 +26,12 @@ import java.util.*;
 /**
  * This is NOT a fully functional StateMachine implementation.
  * This is simply an example of things you can do, and can be used as a starting point.
- *
+ * <p>
  * You are free to change/delete anything in this class, including its fields.
  * The only thing that you cannot change are the notifications/requests between the StateMachine and the APPLICATION
  * You can change the requests/notification between the StateMachine and AGREEMENT protocol, however make sure it is
  * coherent with the specification shown in the project description.
- *
+ * <p>
  * Do not assume that any logic implemented here is correct, think for yourself!
  */
 public class StateMachine extends GenericProtocol {
@@ -45,9 +46,17 @@ public class StateMachine extends GenericProtocol {
     private final Host self;     //My own address/port
     private final int channelId; //Id of the created channel
 
+    private final Map<Host, Integer> pendingConn;
+    private final int connMaxRetries;
+    private final int connRetryTimeout;
+
+
+    private final short agreement;
+    //private Host leader;
     private State state;
     private List<Host> membership;
     private int nextInstance;
+    private final Deque<byte[]> pendingOps;
 
     public StateMachine(Properties props) throws IOException, HandlerRegistrationException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
@@ -55,9 +64,17 @@ public class StateMachine extends GenericProtocol {
 
         String address = props.getProperty("address");
         String port = props.getProperty("p2p_port");
+        String agreement = props.getProperty("agreement");
+        String conn_attempt = props.getProperty("conn_retry");
+        String conn_timeout = props.getProperty("conn_retry_timeout");
 
         logger.info("Listening on {}:{}", address, port);
         this.self = new Host(InetAddress.getByName(address), Integer.parseInt(port));
+        this.agreement = Short.parseShort(agreement);
+        this.connMaxRetries = Integer.parseInt(conn_attempt);
+        this.connRetryTimeout = Integer.parseInt(conn_timeout);
+        this.pendingConn = new HashMap<>();
+        this.pendingOps = new LinkedList<>();
 
         Properties channelProps = new Properties();
         channelProps.setProperty(TCPChannel.ADDRESS_KEY, address);
@@ -67,7 +84,7 @@ public class StateMachine extends GenericProtocol {
         channelProps.setProperty(TCPChannel.CONNECT_TIMEOUT_KEY, "1000");
         channelId = createChannel(TCPChannel.NAME, channelProps);
 
-        /*-------------------- Register Channel Events ------------------------------- */
+        /*-------------------- Register Channel Events -------------------------------- */
         registerChannelEventHandler(channelId, OutConnectionDown.EVENT_ID, this::uponOutConnectionDown);
         registerChannelEventHandler(channelId, OutConnectionFailed.EVENT_ID, this::uponOutConnectionFailed);
         registerChannelEventHandler(channelId, OutConnectionUp.EVENT_ID, this::uponOutConnectionUp);
@@ -77,7 +94,10 @@ public class StateMachine extends GenericProtocol {
         /*--------------------- Register Request Handlers ----------------------------- */
         registerRequestHandler(OrderRequest.REQUEST_ID, this::uponOrderRequest);
 
-        /*--------------------- Register Notification Handlers ----------------------------- */
+        /*--------------------- Register Timer Handlers ------------------------------- */
+
+
+        /*--------------------- Register Notification Handlers ------------------------ */
         subscribeNotification(DecidedNotification.NOTIFICATION_ID, this::uponDecidedNotification);
     }
 
@@ -111,38 +131,53 @@ public class StateMachine extends GenericProtocol {
             state = State.JOINING;
             logger.info("Starting in JOINING as I am not part of initial membership");
             //You have to do something to join the system and know which instance you joined
-            // (and copy the state of that instance)
+            //(and copy the state of that instance)
         }
 
     }
 
-    /*--------------------------------- Requests ---------------------------------------- */
+    /*--------------------------------- Requests -------------------------------------- */
     private void uponOrderRequest(OrderRequest request, short sourceProto) {
         logger.debug("Received request: " + request);
         if (state == State.JOINING) {
-            //Do something smart (like buffering the requests)
+            //TODO: Do something smart (like buffering the requests)
         } else if (state == State.ACTIVE) {
             //Also do something starter, we don't want an infinite number of instances active
-        	//Maybe you should modify what is it that you are proposing so that you remember that this
-        	//operation was issued by the application (and not an internal operation, check the uponDecidedNotification)
+            //Maybe you should modify what is it that you are proposing so that you remember that this
+            //operation was issued by the application (and not an internal operation, check the uponDecidedNotification)
 
-            sendRequest(new ProposeRequest(nextInstance++, serializeOp(request.getOpId(), request.getOperation())),
-                    IncorrectAgreement.PROTOCOL_ID);
+            byte[] op = serializeOp(request.getOpId(), request.getOperation());
+
+            if (pendingOps.isEmpty())
+                sendRequest(new ProposeRequest(nextInstance, op), agreement);
+
+            pendingOps.add(op);
         }
     }
 
-    /*--------------------------------- Notifications ---------------------------------------- */
+    /*--------------------------------- Timers ---------------------------------------- */
+    private void uponRetryConnTimer(RetryConnTimer timer, long timerId) {
+        openConnection(timer.getToConn());
+    }
+
+    /*--------------------------------- Notifications --------------------------------- */
     private void uponDecidedNotification(DecidedNotification notification, short sourceProto) {
         logger.debug("Received notification: " + notification);
         //Maybe we should make sure operations are executed in order?
         //You should be careful and check if this operation if an application operation (and send it up)
         //or if this is an operations that was executed by the state machine itself (in which case you should execute)
 
+        pendingOps.poll();
+        nextInstance++;
+
         Pair<UUID, byte[]> operation = deserializeOp(notification.getOperation());
         triggerNotification(new ExecuteNotification(operation.getLeft(), operation.getRight()));
+
+        if (!pendingOps.isEmpty())
+            sendRequest(new ProposeRequest(nextInstance, pendingOps.peek()), agreement);
     }
 
-    /*--------------------------------- Messages ---------------------------------------- */
+    /*--------------------------------- Messages -------------------------------------- */
     private void uponMsgFail(ProtoMessage msg, Host host, short destProto, Throwable throwable, int channelId) {
         //If a message fails to be sent, for whatever reason, log the message and the reason
         logger.error("Message {} to {} failed, reason: {}", msg, host, throwable);
@@ -151,20 +186,27 @@ public class StateMachine extends GenericProtocol {
     /* --------------------------------- TCPChannel Events ---------------------------- */
     private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
         logger.info("Connection to {} is up", event.getNode());
-
+        //TODO: if not in initial membership add replica? or do this on add replica message
     }
 
     private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
         logger.debug("Connection to {} is down, cause {}", event.getNode(), event.getCause());
+        //TODO: retry conn
+        //removeReplica(nextInstance, event.getNode());
+
     }
 
     private void uponOutConnectionFailed(OutConnectionFailed<ProtoMessage> event, int channelId) {
         logger.debug("Connection to {} failed, cause: {}", event.getNode(), event.getCause());
         //Maybe we don't want to do this forever. At some point we assume he is no longer there.
         //Also, maybe wait a little bit before retrying, or else you'll be trying 1000s of times per second
-        if(membership.contains(event.getNode()))
-            openConnection(event.getNode());
+
+        //TODO: retry conn here?
+        //if (!membership.contains(event.getNode()) || !pendingConn.containsKey(event.getNode())) return;
+        //pendingConn.computeIfPresent(event.getNode(), this::retryConn);
+
     }
+
 
     private void uponInConnectionUp(InConnectionUp event, int channelId) {
         logger.trace("Connection from {} is up", event.getNode());
@@ -174,7 +216,7 @@ public class StateMachine extends GenericProtocol {
         logger.trace("Connection from {} is down, cause: {}", event.getNode(), event.getCause());
     }
 
-    /*--------------------------------- Auxiliary --------------------------------------- */
+    /*--------------------------------- Auxiliary ------------------------------------- */
 
     private byte[] serializeOp(UUID opId, byte[] op) {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -190,6 +232,7 @@ public class StateMachine extends GenericProtocol {
             throw new AssertionError();
         }
     }
+
     private Pair<UUID, byte[]> deserializeOp(byte[] operation) {
         ByteArrayInputStream bis = new ByteArrayInputStream(operation);
         DataInputStream dis = new DataInputStream(bis);
@@ -205,5 +248,15 @@ public class StateMachine extends GenericProtocol {
         }
     }
 
+    private void removeReplica(int instance, Host toRm) {
+        sendRequest(new RemoveReplicaRequest(instance, toRm), agreement);
+        membership.remove(toRm);
+    }
+
+    private Integer retryConn(Host toConn, Integer retry) {
+        if (retry == 0) return null;
+        setupTimer(new RetryConnTimer(toConn), connRetryTimeout);
+        return retry - 1;
+    }
 
 }
