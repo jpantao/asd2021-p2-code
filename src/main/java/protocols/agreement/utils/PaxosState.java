@@ -3,26 +3,38 @@ package protocols.agreement.utils;
 
 public class PaxosState {
 
+    private boolean acceptStatus;
     private int np;
     private int na;
     private byte[] va;
-    private int acceptQuorums;
-    private int prepareQuorums;
+    private int acceptQuorum;
+    private int prepareQuorum;
 
     public PaxosState(int np, byte[] va) {
         this.np = np;
         this.va = va;
         this.na = -1;
-        this.acceptQuorums = 0;
-        this.prepareQuorums = 0;
+        this.acceptQuorum = 0;
+        this.prepareQuorum = 0;
+        this.acceptStatus = false;
+    }
+
+    public PaxosState(int np, int na, byte[] va) {
+        this.np = np;
+        this.va = va;
+        this.na = na;
+        this.acceptQuorum = 0;
+        this.prepareQuorum = 0;
+        this.acceptStatus = false;
     }
 
     public PaxosState(int np) {
         this.np = np;
         this.va = null;
         this.na = -1;
-        this.acceptQuorums = 0;
-        this.prepareQuorums = 0;
+        this.acceptQuorum = 0;
+        this.prepareQuorum = 0;
+        this.acceptStatus = false;
     }
 
     public int getNp() {
@@ -49,20 +61,41 @@ public class PaxosState {
         this.na = na;
     }
 
-    public int getAcceptQuorums() {
-        return acceptQuorums;
+    public int getAcceptQuorum() {
+        return acceptQuorum;
     }
 
-    public void setAcceptQuorums() {
-        acceptQuorums++;
+    public void updateAcceptQuorum() {
+        acceptQuorum++;
     }
 
-    public int getPrepareQuorums() {
-        return prepareQuorums = 0;
+    public void resetAcceptQuorum() {
+        acceptQuorum = 0;
     }
 
-    public void setPrepareQuorums(){
-        prepareQuorums++;
+    public int getPrepareQuorum() {
+        return prepareQuorum;
     }
+
+    public void updatePrepareQuorum() {
+        prepareQuorum++;
+    }
+    
+    public void accept(){
+        acceptStatus = true;
+    }
+    
+    public boolean accepted(){
+        return acceptStatus;
+    }
+
+    public void reset(int n, byte[] va) {
+        this.np = n;
+        this.va = va;
+        this.na = -1;
+        this.acceptQuorum = 0;
+        this.prepareQuorum = 0;
+    }
+
 
 }
