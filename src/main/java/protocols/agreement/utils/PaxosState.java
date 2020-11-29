@@ -7,8 +7,11 @@ public class PaxosState {
     private int np;
     private int na;
     private byte[] va;
+    private int highestNa;
+    private byte[] highestVa;
     private int acceptQuorum;
     private int prepareQuorum;
+    private long quorumTimerID;
 
     public PaxosState(int np, byte[] va) {
         this.np = np;
@@ -17,6 +20,9 @@ public class PaxosState {
         this.acceptQuorum = 0;
         this.prepareQuorum = 0;
         this.acceptStatus = false;
+        this.highestNa = na;
+        this.highestVa = va;
+        this.quorumTimerID = -1;
     }
 
     public PaxosState(int np, int na, byte[] va) {
@@ -26,15 +32,9 @@ public class PaxosState {
         this.acceptQuorum = 0;
         this.prepareQuorum = 0;
         this.acceptStatus = false;
-    }
-
-    public PaxosState(int np) {
-        this.np = np;
-        this.va = null;
-        this.na = -1;
-        this.acceptQuorum = 0;
-        this.prepareQuorum = 0;
-        this.acceptStatus = false;
+        this.highestNa = na;
+        this.highestVa = va;
+        this.quorumTimerID = -1;
     }
 
     public int getNp() {
@@ -89,13 +89,28 @@ public class PaxosState {
         return acceptStatus;
     }
 
-    public void reset(int n, byte[] va) {
-        this.np = n;
-        this.va = va;
-        this.na = -1;
-        this.acceptQuorum = 0;
-        this.prepareQuorum = 0;
+    public byte[] getHighestVa() {
+        return highestVa;
     }
 
+    public void setHighestNa(int highestNa) {
+        this.highestNa = highestNa;
+    }
+
+    public int getHighestNa() {
+        return highestNa;
+    }
+
+    public void setHighestVa(byte[] highestVa){
+        this.highestVa = highestVa;
+    }
+
+    public void setQuorumTimerID(long quorumTimerID) {
+        this.quorumTimerID = quorumTimerID;
+    }
+
+    public long getQuorumTimerID() {
+        return quorumTimerID;
+    }
 
 }
