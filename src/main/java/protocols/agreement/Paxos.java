@@ -138,26 +138,24 @@ public class Paxos extends GenericProtocol {
         int instance = msg.getInstance();
         PaxosState state = instances.get(instance);
         state.updatePrepareQuorum(from);
-        if (!state.accepted()) {
-            int naReceived = msg.getNa();
-            byte[] vaReceived = msg.getVa();
-            int highestNa = state.getHighestNa();
-            if (naReceived > highestNa) {
-                state.setHighestNa(naReceived);
-                state.setHighestVa(vaReceived);
+        int naReceived = msg.getNa();
+        byte[] vaReceived = msg.getVa();
+        int highestNa = state.getHighestNa();
+        if (naReceived > highestNa) {
+            state.setHighestNa(naReceived);
+            state.setHighestVa(vaReceived);
+        }
+        if (state.hasPrepareQuorum()) {
+            state.updateAcceptQuorum(self);
+            cancelTimer(state.getQuorumTimerID());
+            int np = state.getNp();
+            byte[] v = state.getHighestVa();
+            for (Host p : state.getMembership()) {
+                if (!p.equals(self))
+                    sendMessage(new AcceptMessage(instance, np, v), p);
             }
-            if (state.hasPrepareQuorum()) {
-                state.updateAcceptQuorum(self);
-                cancelTimer(state.getQuorumTimerID());
-                int np = state.getNp();
-                byte[] v = state.getHighestVa();
-                for (Host p : state.getMembership()) {
-                    if (!p.equals(self))
-                        sendMessage(new AcceptMessage(instance, np, v), p);
-                }
-                long quorumTimer = setupTimer(new QuorumTimer(instance), prepareTimeout);
-                state.setQuorumTimerID(quorumTimer);
-            }
+            long quorumTimer = setupTimer(new QuorumTimer(instance), prepareTimeout);
+            state.setQuorumTimerID(quorumTimer);
         }
     }
 
