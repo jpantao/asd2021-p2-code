@@ -32,8 +32,6 @@ public class Paxos extends GenericProtocol {
 
     private final Host self; //My own address/port
 
-    private final int channelId; //Id of the created channel
-
     private final Map<Integer, PaxosState> instances;
     private Set<Host> membership;
     private final int n;
@@ -55,7 +53,9 @@ public class Paxos extends GenericProtocol {
         channelProps.setProperty(TCPChannel.HEARTBEAT_INTERVAL_KEY, "1000"); //Heartbeats interval for established connections
         channelProps.setProperty(TCPChannel.HEARTBEAT_TOLERANCE_KEY, "3000"); //Time passed without heartbeats until closing a connection
         channelProps.setProperty(TCPChannel.CONNECT_TIMEOUT_KEY, "1000"); //TCP connect timeout
-        channelId = createChannel(TCPChannel.NAME, channelProps); //Create the channel with the given properties
+
+        //Id of the created channel
+        int channelId = createChannel(TCPChannel.NAME, channelProps); //Create the channel with the given properties
 
         /*---------------------- Register Request Handlers ------------------------- */
         registerRequestHandler(ProposeRequest.REQUEST_ID, this::uponPropose);
