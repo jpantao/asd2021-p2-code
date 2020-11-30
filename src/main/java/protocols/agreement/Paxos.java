@@ -16,7 +16,6 @@ import protocols.agreement.timers.QuorumTimer;
 import protocols.agreement.utils.PaxosState;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
-import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
 import pt.unl.fct.di.novasys.network.data.Host;
 
@@ -38,16 +37,14 @@ public class Paxos extends GenericProtocol {
     private final Map<Integer, PaxosState> instances;
     private Set<Host> membership;
     private final int n;
-    private final int prepareTimeout;
-    private final int acceptTimeout;
+    private final int quorumTimeout;
 
 
     public Paxos(Properties props, Host self) throws IOException, HandlerRegistrationException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.self = self;
         this.n = Integer.parseInt(props.getProperty("n"));
-        this.prepareTimeout = Integer.parseInt(props.getProperty("prepare_timeout"));
-        this.acceptTimeout = Integer.parseInt(props.getProperty("accept_timeout"));
+        this.quorumTimeout = Integer.parseInt(props.getProperty("quorum_timeout"));
         this.membership = new HashSet<>();
         this.instances = new HashMap<>();
 
@@ -113,7 +110,7 @@ public class Paxos extends GenericProtocol {
             if (!p.equals(self))
                 sendMessage(new PrepareMessage(instance, np, state.getVa()), p);
         }
-        long quorumTimer = setupTimer(new QuorumTimer(instance), prepareTimeout);
+        long quorumTimer = setupTimer(new QuorumTimer(instance), quorumTimeout);
         state.setQuorumTimerID(quorumTimer);
     }
 
@@ -154,7 +151,7 @@ public class Paxos extends GenericProtocol {
                 if (!p.equals(self))
                     sendMessage(new AcceptMessage(instance, np, v), p);
             }
-            long quorumTimer = setupTimer(new QuorumTimer(instance), prepareTimeout);
+            long quorumTimer = setupTimer(new QuorumTimer(instance), quorumTimeout);
             state.setQuorumTimerID(quorumTimer);
         }
     }

@@ -16,7 +16,7 @@ public class PaxosState {
     private int highestNa;
     private byte[] highestVa;
     private Set<Host> acceptQuorum;
-    private Set<Host> prepareQuorum;
+    private final Set<Host> prepareQuorum;
     private long quorumTimerID;
     private Set<Host> membership;
 
