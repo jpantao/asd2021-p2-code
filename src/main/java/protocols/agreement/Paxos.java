@@ -76,7 +76,7 @@ public class Paxos extends GenericProtocol {
         subscribeNotification(JoinedNotification.NOTIFICATION_ID, this::uponJoinedNotification);
 
         /*---------------------- Register Timer Handlers --------------------------- */
-        registerTimerHandler(QuorumTimer.TIMER_ID, this::uponQuorumTimer);
+        registerTimerHandler(QuorumTimer.TIMER_ID, this::uponQuorumTimeout);
 
     }
 
@@ -161,6 +161,12 @@ public class Paxos extends GenericProtocol {
         int np = msg.getN();
         byte[] v = msg.getV();
         PaxosState state = instances.get(instance);
+
+        if(state == null) {
+            state = new PaxosState(np,v);
+            instances.put(instance,state);
+        }
+
         if (np >= state.getNp()) {
             state.setNa(np);
             state.setVa(v);
@@ -185,6 +191,14 @@ public class Paxos extends GenericProtocol {
         int n = msg.getN();
         byte[] v = msg.getV();
         PaxosState state = instances.get(instance);
+
+        if(state == null) {
+            state = new PaxosState(n,v);
+            state.setNa(n);
+            state.setVa(v);
+            instances.put(instance,state);
+        }
+
         if (n > state.getNa()) {
             state.setNa(n);
             state.setVa(v);
@@ -212,7 +226,7 @@ public class Paxos extends GenericProtocol {
 
     /* -------------------------------- Timers ------------------------------------- */
 
-    private void uponQuorumTimer(QuorumTimer quorumTimer, long timerID) {
+    private void uponQuorumTimeout(QuorumTimer quorumTimer, long timerID) {
         int instance = quorumTimer.getInstance();
         PaxosState state = instances.get(instance);
         if (!state.accepted())
