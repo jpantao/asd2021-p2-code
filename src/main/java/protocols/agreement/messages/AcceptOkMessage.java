@@ -7,21 +7,21 @@ import pt.unl.fct.di.novasys.network.ISerializer;
 
 import java.io.IOException;
 
-public class AcceptedMessage extends ProtoMessage {
+public class AcceptOkMessage extends ProtoMessage {
     public final static short MSG_ID = 114;
 
     private final int ins;
     private final int n;
     private final byte[] v;
 
-    public AcceptedMessage(int ins, int n, byte[] v) {
+    public AcceptOkMessage(int ins, int n, byte[] v) {
         super(MSG_ID);
         this.ins = ins;
         this.n = n;
         this.v = v;
     }
 
-    public int getIns() {
+    public int getInstance() {
         return ins;
     }
 
@@ -43,9 +43,9 @@ public class AcceptedMessage extends ProtoMessage {
                 '}';
     }
 
-    public static ISerializer<AcceptedMessage> serializer = new ISerializer<AcceptedMessage>() {
+    public static ISerializer<AcceptOkMessage> serializer = new ISerializer<AcceptOkMessage>() {
         @Override
-        public void serialize(AcceptedMessage msg, ByteBuf byteBuf) throws IOException {
+        public void serialize(AcceptOkMessage msg, ByteBuf byteBuf) throws IOException {
             byteBuf.writeInt(msg.ins);
             byteBuf.writeInt(msg.n);
             byteBuf.writeInt(msg.v.length);
@@ -53,12 +53,12 @@ public class AcceptedMessage extends ProtoMessage {
         }
 
         @Override
-        public AcceptedMessage deserialize(ByteBuf byteBuf) throws IOException {
+        public AcceptOkMessage deserialize(ByteBuf byteBuf) throws IOException {
             int ins = byteBuf.readInt();
             int n = byteBuf.readInt();
             byte[] v = new byte[byteBuf.readInt()];
             byteBuf.readBytes(v);
-            return new AcceptedMessage(ins, n, v);
+            return new AcceptOkMessage(ins, n, v);
         }
     };
 }

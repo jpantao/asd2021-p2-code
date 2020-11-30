@@ -21,7 +21,7 @@ public class AcceptMessage extends ProtoMessage {
         this.v = v;
     }
 
-    public int getIns() {
+    public int getInstance() {
         return ins;
     }
 
