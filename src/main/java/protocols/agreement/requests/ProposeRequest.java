@@ -10,6 +10,7 @@ public class ProposeRequest extends ProtoRequest {
     private final int instance;
     private final byte[] operation;
 
+
     public ProposeRequest(int instance, byte[] operation) {
         super(REQUEST_ID);
         this.instance = instance;

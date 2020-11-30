@@ -64,6 +64,8 @@ public class Paxos extends GenericProtocol {
 
         /*---------------------- Register Request Handlers ------------------------- */
         registerRequestHandler(ProposeRequest.REQUEST_ID, this::uponPropose);
+        //registerRequestHandler(ProposeRequest.REQUEST_ID, this::uponAddReplica);
+        //registerRequestHandler(ProposeRequest.REQUEST_ID, this::uponRemoveReplica);
 
         /*---------------------- Register Message Serializers ---------------------- */
         registerMessageSerializer(channelId, PrepareMessage.MSG_ID, PrepareMessage.serializer);
@@ -98,10 +100,10 @@ public class Paxos extends GenericProtocol {
     private void propose(int np,int instance, byte[] v) {
         PaxosState state = instances.get(instance);
         if(state==null) {
-            state = new PaxosState(np, v);
+            state = new PaxosState(np, v,membership);
             instances.put(instance,state);
         }
-        for (Host p : membership)
+        for (Host p : state.getMembership())
             sendMessage(new PrepareMessage(instance, np, v), p);
         long quorumTimer = setupTimer(new QuorumTimer(instance), prepareTimeout);
         state.setQuorumTimerID(quorumTimer);
@@ -115,11 +117,11 @@ public class Paxos extends GenericProtocol {
         int np = msg.getN();
         byte[] v = msg.getV();
         PaxosState state = instances.get(instance);
-        if (state == null) {
-            state = new PaxosState(np, v);
+        /*if (state == null) {
+            state = new PaxosState(np, v,membership);
             instances.put(instance, state);
             sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()), from);
-        } else if (np > state.getNp()) {
+        /*} else*/ if (state != null && np > state.getNp()) {
             state.setNp(msg.getN());
             sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()), from);
         }
@@ -128,22 +130,24 @@ public class Paxos extends GenericProtocol {
     private void uponPrepareOk(PrepareOkMessage msg, Host from, short sourceProto, int channelId) {
         int instance = msg.getInstance();
         PaxosState state = instances.get(instance);
-        int naReceived = msg.getNa();
-        byte[] vaReceived = msg.getVa();
-        int highestNa = state.getHighestNa();
-        if(naReceived > highestNa) {
-            state.setHighestNa(naReceived);
-            state.setHighestVa(vaReceived);
-        }
         state.updatePrepareQuorum();
-        if (state.getPrepareQuorum() >= quorumSize) {
-            cancelTimer(state.getQuorumTimerID());
-            int np = state.getNp();
-            byte[] v = state.getHighestVa();
-            for (Host p : membership)
-                sendMessage(new AcceptMessage(instance, np, v), p);
-            long quorumTimer = setupTimer(new QuorumTimer(instance), prepareTimeout);
-            state.setQuorumTimerID(quorumTimer);
+        if(!state.accepted()) {
+            int naReceived = msg.getNa();
+            byte[] vaReceived = msg.getVa();
+            int highestNa = state.getHighestNa();
+            if (naReceived > highestNa) {
+                state.setHighestNa(naReceived);
+                state.setHighestVa(vaReceived);
+            }
+            if (state.getPrepareQuorum() >= state.getQuorumSize()) {
+                cancelTimer(state.getQuorumTimerID());
+                int np = state.getNp();
+                byte[] v = state.getHighestVa();
+                for (Host p : state.getMembership())
+                    sendMessage(new AcceptMessage(instance, np, v), p);
+                long quorumTimer = setupTimer(new QuorumTimer(instance), prepareTimeout);
+                state.setQuorumTimerID(quorumTimer);
+            }
         }
     }
 
@@ -152,14 +156,10 @@ public class Paxos extends GenericProtocol {
         int np = msg.getN();
         byte[] v = msg.getV();
         PaxosState state = instances.get(instance);
-        if (state == null) {
-            instances.put(instance, new PaxosState(np, np, v));
-            for (Host p : membership)
-                sendMessage(new AcceptOkMessage(instance, np, v), p);
-        } else if (np >= state.getNp()) {
+        if (np >= state.getNp()) {
             state.setNa(np);
             state.setVa(v);
-            for (Host p : membership)
+            for (Host p : state.getMembership())
                 sendMessage(new AcceptOkMessage(instance, np, v), p);
         }
     }
@@ -169,10 +169,7 @@ public class Paxos extends GenericProtocol {
         int n = msg.getN();
         byte[] v = msg.getV();
         PaxosState state = instances.get(instance);
-        if (state == null) {
-            state = new PaxosState(n, n, v);
-            instances.put(instance,state);
-        } else if(n > state.getNa()) {
+        if(n > state.getNa()) {
             state.setNa(n);
             state.setVa(v);
             state.resetAcceptQuorum();

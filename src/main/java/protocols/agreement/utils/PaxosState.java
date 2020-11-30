@@ -1,6 +1,11 @@
 package protocols.agreement.utils;
 
 
+import pt.unl.fct.di.novasys.network.data.Host;
+
+import java.util.HashSet;
+import java.util.Set;
+
 public class PaxosState {
 
     private boolean acceptStatus;
@@ -12,8 +17,10 @@ public class PaxosState {
     private int acceptQuorum;
     private int prepareQuorum;
     private long quorumTimerID;
+    private Set<Host> membership;
+    private int quorumSize;
 
-    public PaxosState(int np, byte[] va) {
+    public PaxosState(int np, byte[] va,Set<Host> membership) {
         this.np = np;
         this.va = va;
         this.na = -1;
@@ -23,6 +30,7 @@ public class PaxosState {
         this.highestNa = na;
         this.highestVa = va;
         this.quorumTimerID = -1;
+        this.membership = membership;
     }
 
     public PaxosState(int np, int na, byte[] va) {
@@ -35,6 +43,23 @@ public class PaxosState {
         this.highestNa = na;
         this.highestVa = va;
         this.quorumTimerID = -1;
+        this.membership = new HashSet<>();
+    }
+
+    public int getQuorumSize() {
+        return quorumSize;
+    }
+
+    public void addReplica(Host host) {
+        membership.add(host);
+    }
+
+    public void removeReplica(Host host) {
+        membership.remove(host);
+    }
+
+    public Set<Host> getMembership() {
+        return membership;
     }
 
     public int getNp() {
