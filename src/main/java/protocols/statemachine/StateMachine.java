@@ -184,7 +184,7 @@ public class StateMachine extends GenericProtocol {
     }
 
     private void uponNopTimer(NopTimer timer, long timerId) {
-        if(agreement == 0 && self.equals(leader)) //TODO: set multipaxos id (not 0)
+        if(agreement == 0 && self.equals(leader)) //TODO: set equals to multi paxos id (not 0)
             return;
         newProposalInternal(serializeOp(NOP, new byte[0]));
     }
