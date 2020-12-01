@@ -7,67 +7,74 @@ import pt.unl.fct.di.novasys.network.ISerializer;
 
 import java.io.IOException;
 
-public class PromiseMessage extends ProtoMessage {
+public class PrepareOkMessage extends ProtoMessage {
     public final static short MSG_ID = 112;
 
     private final int ins;
-    private final int n;
-    private final byte[] v;
 
-    public PromiseMessage(int ins, int n, byte[] v) {
+    private final int na;
+    private final byte[] va;
+
+
+    public PrepareOkMessage(int ins,int n, byte[] v) {
         super(MSG_ID);
         this.ins = ins;
-        this.n = n;
-        this.v = v;
+        this.na = n;
+        this.va = v;
     }
 
-    public int getIns() {
+    public int getInstance() {
         return ins;
     }
 
-    public int getN() {
-        return n;
+
+    public int getNa() {
+        return na;
     }
 
-    public byte[] getV() {
-        return v;
+    public byte[] getVa() {
+        return va;
     }
 
     @Override
     public String toString() {
         return "PromiseMessage{" +
                 "ins=" + ins +
-                ", n=" + n +
-                ", v=" + Hex.encodeHexString(v) +
+
+                ", n=" + na +
+                ", v=" + Hex.encodeHexString(va) +
+
                 '}';
     }
 
-    public static ISerializer<PromiseMessage> serializer = new ISerializer<PromiseMessage>() {
+    public static ISerializer<PrepareOkMessage> serializer = new ISerializer<PrepareOkMessage>() {
         @Override
-        public void serialize(PromiseMessage msg, ByteBuf byteBuf) throws IOException {
-            if (msg.v != null) {
+        public void serialize(PrepareOkMessage msg, ByteBuf byteBuf) throws IOException {
+            if (msg.va != null) {
                 byteBuf.writeBoolean(true);
-                byteBuf.writeInt(msg.v.length);
-                byteBuf.writeBytes(msg.v);
+                byteBuf.writeInt(msg.va.length);
+                byteBuf.writeBytes(msg.va);
             } else {
                 byteBuf.writeBoolean(false);
             }
 
             byteBuf.writeInt(msg.ins);
-            byteBuf.writeInt(msg.n);
+            byteBuf.writeInt(msg.na);
         }
 
         @Override
-        public PromiseMessage deserialize(ByteBuf byteBuf) throws IOException {
+        public PrepareOkMessage deserialize(ByteBuf byteBuf) throws IOException {
+
             byte[] v = null;
             if(byteBuf.readBoolean()){
                 v = new byte[byteBuf.readInt()];
                 byteBuf.readBytes(v);
             }
 
+
             int ins = byteBuf.readInt();
             int n = byteBuf.readInt();
-            return new PromiseMessage(ins, n, v);
+            return new PrepareOkMessage(ins , n, v);
         }
     };
 }
