@@ -2,10 +2,10 @@ package protocols.statemachine.timers;
 
 import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
 
-public class NOPTimer extends ProtoTimer {
+public class NopTimer extends ProtoTimer {
     public static final short TIMER_ID = 202;
 
-    public NOPTimer() {
+    public NopTimer() {
         super(TIMER_ID);
     }
 
