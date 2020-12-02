@@ -108,7 +108,7 @@ public class Paxos extends GenericProtocol {
         state.updatePrepareQuorum(self);
         for (Host p : state.getMembership()) {
             if (!p.equals(self))
-                sendMessage(new PrepareMessage(instance, np, state.getVa()), p);
+                sendMessage(new PrepareMessage(instance, np), p);
         }
         long quorumTimer = setupTimer(new QuorumTimer(instance), quorumTimeout);
         state.setQuorumTimerID(quorumTimer);
@@ -119,12 +119,11 @@ public class Paxos extends GenericProtocol {
     private void uponPrepare(PrepareMessage msg, Host from, short sourceProto, int channelId) {
         int instance = msg.getInstance();
         int np = msg.getN();
-        byte[] v = msg.getV();
         PaxosState state = instances.get(instance);
         if (state == null) {
-            state = new PaxosState(np, v);
+            state = new PaxosState(np);
             instances.put(instance, state);
-            sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()), from);
+            sendMessage(new PrepareOkMessage(instance, state.getNa(), null), from);
         } else if (np > state.getNp()) {
             state.setNp(msg.getN());
             sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()), from);
@@ -162,9 +161,9 @@ public class Paxos extends GenericProtocol {
         byte[] v = msg.getV();
         PaxosState state = instances.get(instance);
 
-        if(state == null) {
-            state = new PaxosState(np,v);
-            instances.put(instance,state);
+        if (state == null) {
+            state = new PaxosState(np, v);
+            instances.put(instance, state);
         }
 
         if (np >= state.getNp()) {
@@ -192,11 +191,9 @@ public class Paxos extends GenericProtocol {
         byte[] v = msg.getV();
         PaxosState state = instances.get(instance);
 
-        if(state == null) {
-            state = new PaxosState(n,v);
-            state.setNa(n);
-            state.setVa(v);
-            instances.put(instance,state);
+        if (state == null) {
+            state = new PaxosState(n, n, v);
+            instances.put(instance, state);
         }
 
         if (n > state.getNa()) {
