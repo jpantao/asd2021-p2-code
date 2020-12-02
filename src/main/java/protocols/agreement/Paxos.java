@@ -33,7 +33,7 @@ public class Paxos extends GenericProtocol {
     private final Host self; //My own address/port
 
     private final Map<Integer, PaxosState> instances;
-    private Set<Host> membership;
+    private final Set<Host> membership;
     private final int n;
     private final int quorumTimeout;
 
@@ -81,7 +81,7 @@ public class Paxos extends GenericProtocol {
     }
 
     @Override
-    public void init(Properties props) throws HandlerRegistrationException, IOException {
+    public void init(Properties props) {
 
     }
 

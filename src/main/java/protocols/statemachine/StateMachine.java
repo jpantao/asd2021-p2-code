@@ -164,7 +164,6 @@ public class StateMachine extends GenericProtocol {
 
         byte[] op = serializeOp(request.getOpId(), request.getOperation());
         newProposal(op);
-        pendingAppOrder.add(op);
     }
 
     /*--------------------------------- Timers ---------------------------------------- */
@@ -199,10 +198,18 @@ public class StateMachine extends GenericProtocol {
         if (Arrays.equals(pendingAppOrder.peek(), notification.getOperation()))
             pendingAppOrder.poll();
 
-        proposeNext();
+        Pair<UUID, byte[]> toExec = deserializeOp(notification.getOperation());
+        UUID opId = toExec.getLeft();
+        byte[] op = toExec.getRight();
 
-        pendingExec.put(notification.getInstance(), notification.getOperation());
-        execAvailable();
+        if (opId.equals(ADD_REP))
+            addReplica(deserializeHost(op));
+        else if (opId.equals(REM_REP))
+            removeReplica(deserializeHost(op));
+        else if (!opId.equals(NOP))
+            triggerNotification(new ExecuteNotification(opId, op));
+
+        proposeNext();
     }
 
     /*--------------------------------- Messages -------------------------------------- */
@@ -276,9 +283,7 @@ public class StateMachine extends GenericProtocol {
         try {
             ByteBuf buf = Unpooled.buffer();
             Host.serializer.serialize(node, buf);
-            byte[] serialized = new byte[buf.readableBytes()];
-            buf.readBytes(serialized);
-            return serialized;
+            return buf.array();
         } catch (IOException e) {
             e.printStackTrace();
             throw new AssertionError();
@@ -291,25 +296,6 @@ public class StateMachine extends GenericProtocol {
         } catch (IOException e) {
             e.printStackTrace();
             throw new AssertionError();
-        }
-    }
-
-    private void execAvailable() {
-        byte[] next;
-        while ((next = pendingExec.get(nextExec++)) != null) {
-            Pair<UUID, byte[]> toExec = deserializeOp(next);
-            UUID opId = toExec.getLeft();
-            byte[] op = toExec.getRight();
-
-            if (opId.equals(NOP))
-                continue;
-
-            if (opId.equals(ADD_REP))
-                addReplica(deserializeHost(op));
-            else if (opId.equals(REM_REP))
-                removeReplica(deserializeHost(op));
-            else
-                triggerNotification(new ExecuteNotification(opId, op));
         }
     }
 
