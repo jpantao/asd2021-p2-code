@@ -20,6 +20,19 @@ public class PaxosState {
     private long quorumTimerID;
     private Set<Host> membership;
 
+    public PaxosState(int np, int na, byte[] va) {
+        this.np = np;
+        this.va = va;
+        this.na = na;
+        this.acceptQuorum = new HashSet<>();
+        this.prepareQuorum = new HashSet<>();
+        this.acceptStatus = false;
+        this.highestNa = na;
+        this.highestVa = va;
+        this.quorumTimerID = -1;
+        this.membership = new HashSet<>();
+    }
+
     public PaxosState(int np, byte[] va) {
         this.np = np;
         this.va = va;
@@ -29,6 +42,19 @@ public class PaxosState {
         this.acceptStatus = false;
         this.highestNa = na;
         this.highestVa = va;
+        this.quorumTimerID = -1;
+        this.membership = new HashSet<>();
+    }
+
+    public PaxosState(int np) {
+        this.np = np;
+        this.va = null;
+        this.na = -1;
+        this.acceptQuorum = new HashSet<>();
+        this.prepareQuorum = new HashSet<>();
+        this.acceptStatus = false;
+        this.highestNa = na;
+        this.highestVa = null;
         this.quorumTimerID = -1;
         this.membership = new HashSet<>();
     }

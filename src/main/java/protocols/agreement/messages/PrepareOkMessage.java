@@ -40,10 +40,8 @@ public class PrepareOkMessage extends ProtoMessage {
     public String toString() {
         return "PromiseMessage{" +
                 "ins=" + ins +
-
                 ", n=" + na +
                 ", v=" + Hex.encodeHexString(va) +
-
                 '}';
     }
 
