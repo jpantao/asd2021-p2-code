@@ -6,8 +6,8 @@ import java.io.IOException;
 
 public interface Serializer<T>{
 
-    void serialize(T t, ByteBuf buf);z
+    void serialize(T t, ByteBuf buf) throws IOException;
 
-    T deserialize(ByteBuf buf);
+    T deserialize(ByteBuf buf) throws IOException;
 
 }

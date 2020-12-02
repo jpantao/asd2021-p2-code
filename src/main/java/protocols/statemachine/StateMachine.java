@@ -3,6 +3,7 @@ package protocols.statemachine;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import org.apache.commons.lang3.tuple.Pair;
+import protocols.agreement.MultiPaxos;
 import protocols.agreement.notifications.JoinedNotification;
 import protocols.agreement.requests.AddReplicaRequest;
 import protocols.agreement.requests.ProposeRequest;
@@ -183,7 +184,7 @@ public class StateMachine extends GenericProtocol {
     }
 
     private void uponNopTimer(NopTimer timer, long timerId) {
-        if(agreement == 0 && self.equals(leader)) //TODO: set equals to multi paxos id (not 0)
+        if(agreement == MultiPaxos.PROTOCOL_ID && self.equals(leader)) //TODO: set equals to multi paxos id (not 0)
             return;
         newProposalInternal(serializeOp(NOP, new byte[0]));
     }
