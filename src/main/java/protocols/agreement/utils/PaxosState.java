@@ -18,6 +18,8 @@ public class PaxosState {
     private Set<Host> acceptQuorum;
     private final Set<Host> prepareQuorum;
     private long quorumTimerID;
+
+    private long leaderTimerID; //only used in multipaxos
     private Set<Host> membership;
 
     public PaxosState(int np, int na, byte[] va) {
@@ -31,6 +33,7 @@ public class PaxosState {
         this.highestVa = va;
         this.quorumTimerID = -1;
         this.membership = new HashSet<>();
+        this.leaderTimerID = -1;
     }
 
     public PaxosState(int np, byte[] va) {
@@ -44,6 +47,7 @@ public class PaxosState {
         this.highestVa = va;
         this.quorumTimerID = -1;
         this.membership = new HashSet<>();
+        this.leaderTimerID = -1;
     }
 
     public PaxosState(int np) {
@@ -57,6 +61,7 @@ public class PaxosState {
         this.highestVa = null;
         this.quorumTimerID = -1;
         this.membership = new HashSet<>();
+        this.leaderTimerID = -1;
     }
 
     public PaxosState(int np, byte[] va, Set<Host> membership) {
@@ -70,6 +75,7 @@ public class PaxosState {
         this.highestVa = va;
         this.quorumTimerID = -1;
         this.membership = membership;
+        this.leaderTimerID = -1;
     }
 
     public void setMembership(Set<Host> m) {
@@ -174,6 +180,14 @@ public class PaxosState {
 
     public long getQuorumTimerID() {
         return quorumTimerID;
+    }
+
+    public long getLeaderTimerID() {
+        return leaderTimerID;
+    }
+
+    public void setLeaderTimerID(long leaderTimerID) {
+        this.leaderTimerID = leaderTimerID;
     }
 
 }
