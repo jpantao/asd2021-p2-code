@@ -51,6 +51,10 @@ public abstract class Operation {
         this.type = type;
     }
 
+    public Type getType() {
+        return type;
+    }
+
     public static byte[] serialize(Operation operation) {
         try {
             ByteBuf buf = Unpooled.buffer();
