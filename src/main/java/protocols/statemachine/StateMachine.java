@@ -4,7 +4,13 @@ import protocols.agreement.notifications.JoinedNotification;
 import protocols.agreement.requests.AddReplicaRequest;
 import protocols.agreement.requests.ProposeRequest;
 import protocols.agreement.requests.RemoveReplicaRequest;
+import protocols.app.HashApp;
+import protocols.app.requests.CurrentStateReply;
+import protocols.app.requests.CurrentStateRequest;
+import protocols.app.requests.InstallStateRequest;
 import protocols.statemachine.messages.JoinMessage;
+import protocols.statemachine.messages.JoinedMessage;
+import protocols.statemachine.messages.RedirectMessage;
 import protocols.statemachine.notifications.ExecuteNotification;
 import protocols.statemachine.timers.NopTimer;
 import protocols.statemachine.timers.RetryConnTimer;
@@ -52,7 +58,9 @@ public class StateMachine extends GenericProtocol {
     private State state;
     private List<Host> membership;
 
-    private final Map<Host, Long> pendingConn;
+    private final Map<Host, Integer> joiningConn;
+    private final Map<Integer, Host> waitingState;
+    private final Map<Host, Long> retryingConn;
     private final int connMaxRetries;
     private final int connRetryTimeout;
 
@@ -71,7 +79,9 @@ public class StateMachine extends GenericProtocol {
 
         this.agreement = Short.parseShort(props.getProperty("agreement"));
 
-        this.pendingConn = new HashMap<>();
+        this.joiningConn = new HashMap<>();
+        this.waitingState = new HashMap<>();
+        this.retryingConn = new HashMap<>();
         this.connMaxRetries = Integer.parseInt(props.getProperty("conn_retry_maxn"));
         this.connRetryTimeout = Integer.parseInt(props.getProperty("conn_retry_timeout"));
         this.nopInterval = Integer.parseInt(props.getProperty("nop_interval"));
@@ -105,8 +115,8 @@ public class StateMachine extends GenericProtocol {
         /*--------------------- Register Request Handlers ----------------------------- */
         registerRequestHandler(OrderRequest.REQUEST_ID, this::uponOrderRequest);
 
-        /*--------------------- Register Message Handlers ----------------------------- */
-        //registerMessageHandler(JoinMessage.MSG_ID, );
+        /*--------------------- Reply Request Handlers -------------------------------- */
+        registerReplyHandler(CurrentStateReply.REQUEST_ID, this::uponCurrentStateReply);
 
         /*--------------------- Register Timer Handlers ------------------------------- */
         registerTimerHandler(RetryConnTimer.TIMER_ID, this::uponRetryConnTimer);
@@ -114,6 +124,16 @@ public class StateMachine extends GenericProtocol {
 
         /*--------------------- Register Notification Handlers ------------------------ */
         subscribeNotification(DecidedNotification.NOTIFICATION_ID, this::uponDecidedNotification);
+
+        /*--------------------- Register Message Serializers -------------------------- */
+        registerMessageSerializer(channelId, JoinMessage.MSG_ID, JoinMessage.serializer);
+        registerMessageSerializer(channelId, JoinedMessage.MSG_ID, JoinedMessage.serializer);
+        registerMessageSerializer(channelId, RedirectMessage.MSG_ID, RedirectMessage.serializer);
+
+        /*--------------------- Register Message Handlers ----------------------------- */
+        registerMessageHandler(channelId, JoinMessage.MSG_ID, this::uponJoin, this::uponMsgFail);
+        registerMessageHandler(channelId, JoinedMessage.MSG_ID, this::uponJoined, this::uponMsgFail);
+        registerMessageHandler(channelId, RedirectMessage.MSG_ID, this::uponRedirect, this::uponMsgFail);
     }
 
     @Override
@@ -135,12 +155,12 @@ public class StateMachine extends GenericProtocol {
             initialMembership.add(h);
         }
 
-        if (initialMembership.contains(self)) {
+        membership = new LinkedList<>(initialMembership);
+        if (membership.contains(self)) {
             logger.info("Starting in ACTIVE as I am part of initial membership");
             state = State.ACTIVE;
             leader = self;
             //I'm part of the initial membership, so I'm assuming the system is bootstrapping
-            membership = new LinkedList<>(initialMembership);
             membership.forEach(this::openConnection);
             triggerNotification(new JoinedNotification(membership, 0));
         } else {
@@ -154,34 +174,48 @@ public class StateMachine extends GenericProtocol {
         setupPeriodicTimer(new NopTimer(), nopInterval, nopInterval);
     }
 
-    /*--------------------------------- Requests -------------------------------------- */
-    private void uponOrderRequest(OrderRequest request, short sourceProto) {
-        logger.debug("Received request: " + request);
-
-        newProposal(new AppOperation(request.getOpId(), request.getOperation()));
-    }
-
     /*--------------------------------- Timers ---------------------------------------- */
+
     private void uponRetryConnTimer(RetryConnTimer timer, long timerId) {
         logger.trace("Retrying connection to {}, available attempts: {}", timer.getNode(), timer.getRetry());
-        if (pendingConn.remove(timer.getNode()) == null)
+        if (retryingConn.remove(timer.getNode()) == null)
             return; //should not happen (just a safeguard)
 
         if (timer.getRetry() > 0) {
             openConnection(timer.getNode());
             long t = setupTimer(new RetryConnTimer(timer.getNode(), timer.getRetry() - 1), connRetryTimeout);
-            pendingConn.put(timer.getNode(), t);
-        } else {
+            retryingConn.put(timer.getNode(), t);
+        } else if (membership.contains(timer.getNode())){
             RemReplica op = new RemReplica(timer.getNode());
-            newProposalInternal(op);
+            newProposalInternal(Operation.serialize(op));
         }
     }
 
     private void uponNopTimer(NopTimer timer, long timerId) {
         if (!self.equals(leader)) //I'm not the leader
             return;
-        newProposalInternal(new Nop());
+        newProposalInternal(Operation.serialize(new Nop()));
     }
+
+    /*--------------------------------- Requests -------------------------------------- */
+    private void uponOrderRequest(OrderRequest request, short sourceProto) {
+        logger.debug("Received request: " + request);
+
+        //TODO: add redirects
+        byte[] proposal = Operation.serialize(new AppOperation(request.getOpId(), request.getOperation()));
+        newProposal(proposal);
+    }
+
+    /*--------------------------------- Replies --------------------------------------- */
+    private void uponCurrentStateReply(CurrentStateReply request, short sourceProto) {
+        logger.debug("Received request: " + request);
+
+        waitingState.computeIfPresent(request.getInstance(), (instance, node) -> {
+            sendMessage(new JoinedMessage(instance, request.getState()), node);
+            return null; //returning null removes the entry
+        });
+    }
+
 
     /*--------------------------------- Notifications --------------------------------- */
     private void uponDecidedNotification(DecidedNotification notification, short sourceProto) {
@@ -200,13 +234,32 @@ public class StateMachine extends GenericProtocol {
         else if (op instanceof RemReplica)
             removeReplica(notification.getInstance(), ((RemReplica) op).getNode());
         else if (op instanceof AppOperation)
-            triggerNotification(new ExecuteNotification(((AppOperation) op).getOpId(), ((AppOperation) op).getOp()));
+            triggerNotification(new ExecuteNotification(
+                    ((AppOperation) op).getOpId(), ((AppOperation) op).getOp()));
 
         proposeNext();
     }
 
     /*--------------------------------- Messages -------------------------------------- */
-    //TODO: add replica and redirect messages
+    private void uponJoin(JoinMessage msg, Host from, short sourceProto, int channelId){
+        if(membership.contains(from))
+            return;
+
+        newProposalInternal(Operation.serialize(new AddReplica(from)));
+    }
+
+    private void uponJoined(JoinedMessage msg, Host from, short sourceProto, int channelId){
+        sendRequest(new InstallStateRequest(msg.getState()), HashApp.PROTO_ID);
+        membership.add(self);
+        state = State.ACTIVE;
+        leader = self; //TODO: ask goncalo for new leader notification triggers
+
+        proposeNext();
+    }
+
+    private void uponRedirect(RedirectMessage msg, Host from, short sourceProto, int channelId){
+        newProposal(msg.getOperation());
+    }
 
     private void uponMsgFail(ProtoMessage msg, Host host, short destProto, Throwable throwable, int channelId) {
         //If a message fails to be sent, for whatever reason, log the message and the reason
@@ -221,8 +274,15 @@ public class StateMachine extends GenericProtocol {
         if (state == State.JOINING)
             sendMessage(new JoinMessage(), event.getNode());
 
-        pendingConn.computeIfPresent(event.getNode(), (k, v) -> {
-            cancelTimer(v); //stop attempts to connect
+        if (state == State.ACTIVE)
+            joiningConn.computeIfPresent(event.getNode(), (node, instance) -> {
+                waitingState.put(instance, node);
+                sendRequest(new CurrentStateRequest(instance), HashApp.PROTO_ID);
+                return null; //returning null removes the entry
+            });
+
+        retryingConn.computeIfPresent(event.getNode(), (node, timerId) -> {
+            cancelTimer(timerId); //stop attempts to connect
             return null; //returning null removes the entry
         });
     }
@@ -230,14 +290,14 @@ public class StateMachine extends GenericProtocol {
     private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
         logger.debug("Connection to {} is down, cause {}", event.getNode(), event.getCause());
 
-        pendingConn.computeIfAbsent(event.getNode(), k -> //start retying connection
+        retryingConn.computeIfAbsent(event.getNode(), k -> //start retying connection
                 setupTimer(new RetryConnTimer(k, connMaxRetries), connRetryTimeout));
     }
 
     private void uponOutConnectionFailed(OutConnectionFailed<ProtoMessage> event, int channelId) {
         logger.debug("Connection to {} failed, cause: {}", event.getNode(), event.getCause());
 
-        pendingConn.computeIfAbsent(event.getNode(), k -> //start retying connection
+        retryingConn.computeIfAbsent(event.getNode(), k -> //start retying connection
                 setupTimer(new RetryConnTimer(k, connMaxRetries), connRetryTimeout));
     }
 
@@ -254,8 +314,9 @@ public class StateMachine extends GenericProtocol {
     private void addReplica(int instance, Host node) {
         if (membership.contains(node))
             return;
-        sendRequest(new AddReplicaRequest(instance, node), agreement);
-        membership.add(node);
+        joiningConn.put(node, instance);
+        openConnection(node);
+        sendRequest(new AddReplicaRequest(instance, node), agreement); //request before establishing the connection?
     }
 
     private void removeReplica(int instance, Host node) {
@@ -263,17 +324,16 @@ public class StateMachine extends GenericProtocol {
             return;
         sendRequest(new RemoveReplicaRequest(instance, node), agreement);
         membership.remove(node);
+        closeConnection(node);
     }
 
-    private void newProposal(Operation op) {
-        byte[] proposal = Operation.serialize(op);
+    private void newProposal(byte[] proposal) {
         if (pendingInternal.isEmpty() && pendingOperations.isEmpty() && state == State.ACTIVE)
             sendRequest(new ProposeRequest(nextInstance++, proposal), agreement);
         pendingOperations.add(proposal);
     }
 
-    private void newProposalInternal(Operation op) {
-        byte[] proposal = Operation.serialize(op);
+    private void newProposalInternal(byte[] proposal) {
         if (pendingInternal.isEmpty() && pendingOperations.isEmpty() && state == State.ACTIVE)
             sendRequest(new ProposeRequest(nextInstance++, proposal), agreement);
         pendingInternal.add(proposal);
