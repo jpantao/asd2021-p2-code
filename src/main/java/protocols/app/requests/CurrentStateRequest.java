@@ -6,7 +6,7 @@ public class CurrentStateRequest extends ProtoRequest {
 
     public static final short REQUEST_ID = 301;
 
-    private int instance;
+    private final int instance;
     
     public CurrentStateRequest(int instance) {
         super(REQUEST_ID);

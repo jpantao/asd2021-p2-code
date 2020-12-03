@@ -6,7 +6,7 @@ public class InstallStateRequest extends ProtoRequest {
 
     public static final short REQUEST_ID = 302;
 
-    private byte[] state;
+    private final byte[] state;
     
     public InstallStateRequest(byte[] state) {
         super(REQUEST_ID);

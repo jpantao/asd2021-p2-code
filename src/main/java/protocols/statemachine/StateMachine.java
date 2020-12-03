@@ -1,13 +1,10 @@
 package protocols.statemachine;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import org.apache.commons.lang3.tuple.Pair;
-import protocols.agreement.MultiPaxos;
 import protocols.agreement.notifications.JoinedNotification;
 import protocols.agreement.requests.AddReplicaRequest;
 import protocols.agreement.requests.ProposeRequest;
 import protocols.agreement.requests.RemoveReplicaRequest;
+import protocols.statemachine.messages.JoinMessage;
 import protocols.statemachine.notifications.ExecuteNotification;
 import protocols.statemachine.timers.NopTimer;
 import protocols.statemachine.timers.RetryConnTimer;
@@ -108,6 +105,9 @@ public class StateMachine extends GenericProtocol {
         /*--------------------- Register Request Handlers ----------------------------- */
         registerRequestHandler(OrderRequest.REQUEST_ID, this::uponOrderRequest);
 
+        /*--------------------- Register Message Handlers ----------------------------- */
+        //registerMessageHandler(JoinMessage.MSG_ID, );
+
         /*--------------------- Register Timer Handlers ------------------------------- */
         registerTimerHandler(RetryConnTimer.TIMER_ID, this::uponRetryConnTimer);
         registerTimerHandler(NopTimer.TIMER_ID, this::uponNopTimer);
@@ -136,17 +136,19 @@ public class StateMachine extends GenericProtocol {
         }
 
         if (initialMembership.contains(self)) {
-            state = State.ACTIVE;
             logger.info("Starting in ACTIVE as I am part of initial membership");
+            state = State.ACTIVE;
+            leader = self;
             //I'm part of the initial membership, so I'm assuming the system is bootstrapping
             membership = new LinkedList<>(initialMembership);
             membership.forEach(this::openConnection);
             triggerNotification(new JoinedNotification(membership, 0));
         } else {
-            state = State.JOINING;
             logger.info("Starting in JOINING as I am not part of initial membership");
+            state = State.JOINING;
             //You have to do something to join the system and know which instance you joined
             //(and copy the state of that instance)
+            membership.forEach(this::openConnection);
         }
 
         setupPeriodicTimer(new NopTimer(), nopInterval, nopInterval);
@@ -176,7 +178,7 @@ public class StateMachine extends GenericProtocol {
     }
 
     private void uponNopTimer(NopTimer timer, long timerId) {
-        if(agreement == MultiPaxos.PROTOCOL_ID && self.equals(leader)) //TODO: set equals to multi paxos id (not 0)
+        if (!self.equals(leader)) //I'm not the leader
             return;
         newProposalInternal(new Nop());
     }
@@ -185,23 +187,20 @@ public class StateMachine extends GenericProtocol {
     private void uponDecidedNotification(DecidedNotification notification, short sourceProto) {
         logger.debug("Received notification: " + notification);
 
-
         if (Arrays.equals(pendingInternal.peek(), notification.getOperation()))
             pendingOperations.poll();
 
         if (Arrays.equals(pendingOperations.peek(), notification.getOperation()))
             pendingOperations.poll();
 
-
         Operation op = Operation.deserialize(notification.getOperation());
 
         if (op instanceof AddReplica)
-            addReplica(notification.getInstance(), ((AddReplica)op).getNode());
-        else if (op instanceof  RemReplica)
-            removeReplica(notification.getInstance(), ((RemReplica)op).getNode());
+            addReplica(notification.getInstance(), ((AddReplica) op).getNode());
+        else if (op instanceof RemReplica)
+            removeReplica(notification.getInstance(), ((RemReplica) op).getNode());
         else if (op instanceof AppOperation)
-            triggerNotification(new ExecuteNotification(((AppOperation)op).getOpId(), ((AppOperation)op).getOp()));
-
+            triggerNotification(new ExecuteNotification(((AppOperation) op).getOpId(), ((AppOperation) op).getOp()));
 
         proposeNext();
     }
@@ -218,20 +217,29 @@ public class StateMachine extends GenericProtocol {
     private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
         logger.info("Connection to {} is up", event.getNode());
 
-        if (pendingConn.containsKey(event.getNode()))
-            cancelTimer(pendingConn.remove(event.getNode()));
+        //TODO: could send a join message to only one replica
+        if (state == State.JOINING)
+            sendMessage(new JoinMessage(), event.getNode());
+
+        pendingConn.computeIfPresent(event.getNode(), (k, v) -> {
+            cancelTimer(v); //stop attempts to connect
+            return null; //returning null removes the entry
+        });
     }
 
     private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
         logger.debug("Connection to {} is down, cause {}", event.getNode(), event.getCause());
-        long timer = setupTimer(new RetryConnTimer(event.getNode(), connMaxRetries), connRetryTimeout);
-        pendingConn.put(event.getNode(), timer);
+
+        pendingConn.computeIfAbsent(event.getNode(), k -> //start retying connection
+                setupTimer(new RetryConnTimer(k, connMaxRetries), connRetryTimeout));
     }
 
     private void uponOutConnectionFailed(OutConnectionFailed<ProtoMessage> event, int channelId) {
         logger.debug("Connection to {} failed, cause: {}", event.getNode(), event.getCause());
-    }
 
+        pendingConn.computeIfAbsent(event.getNode(), k -> //start retying connection
+                setupTimer(new RetryConnTimer(k, connMaxRetries), connRetryTimeout));
+    }
 
     private void uponInConnectionUp(InConnectionUp event, int channelId) {
         logger.trace("Connection from {} is up", event.getNode());
@@ -250,7 +258,7 @@ public class StateMachine extends GenericProtocol {
         membership.add(node);
     }
 
-    private void removeReplica(int instance,Host node) {
+    private void removeReplica(int instance, Host node) {
         if (!membership.contains(node))
             return;
         sendRequest(new RemoveReplicaRequest(instance, node), agreement);

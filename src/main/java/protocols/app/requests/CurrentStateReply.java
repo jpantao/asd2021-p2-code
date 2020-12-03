@@ -6,8 +6,8 @@ public class CurrentStateReply extends ProtoReply {
 
     public static final short REQUEST_ID = 301;
 
-    private int instance;
-    private byte[] state;
+    private final int instance;
+    private final byte[] state;
     
     public CurrentStateReply(int instance, byte[] state) {
         super(REQUEST_ID);

@@ -8,7 +8,7 @@ import java.io.IOException;
 import java.util.Arrays;
 
 public class RedirectMessage extends ProtoMessage {
-    public static final short MSG_ID = 202;
+    public static final short MSG_ID = 203;
 
     private final byte[] operation;
 
@@ -31,12 +31,15 @@ public class RedirectMessage extends ProtoMessage {
     public static ISerializer<RedirectMessage> serializer = new ISerializer<RedirectMessage>() {
         @Override
         public void serialize(RedirectMessage msg, ByteBuf buf) throws IOException {
+            buf.writeInt(msg.operation.length);
             buf.writeBytes(msg.operation);
         }
 
         @Override
         public RedirectMessage deserialize(ByteBuf buf) throws IOException {
-            return new RedirectMessage(buf.array());
+            byte[] op = new byte[buf.readInt()];
+            buf.readBytes(op);
+            return new RedirectMessage(op);
         }
     };
 }
