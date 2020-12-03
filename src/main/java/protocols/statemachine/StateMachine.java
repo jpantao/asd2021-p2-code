@@ -1,6 +1,7 @@
 package protocols.statemachine;
 
 import protocols.agreement.notifications.JoinedNotification;
+import protocols.agreement.notifications.LeaderElectedNotification;
 import protocols.agreement.requests.AddReplicaRequest;
 import protocols.agreement.requests.ProposeRequest;
 import protocols.agreement.requests.RemoveReplicaRequest;
@@ -124,6 +125,7 @@ public class StateMachine extends GenericProtocol {
 
         /*--------------------- Register Notification Handlers ------------------------ */
         subscribeNotification(DecidedNotification.NOTIFICATION_ID, this::uponDecidedNotification);
+        subscribeNotification(LeaderElectedNotification.NOTIFICATION_ID, this::uponLeaderElectedNotification);
 
         /*--------------------- Register Message Serializers -------------------------- */
         registerMessageSerializer(channelId, JoinMessage.MSG_ID, JoinMessage.serializer);
@@ -175,7 +177,6 @@ public class StateMachine extends GenericProtocol {
     }
 
     /*--------------------------------- Timers ---------------------------------------- */
-
     private void uponRetryConnTimer(RetryConnTimer timer, long timerId) {
         logger.trace("Retrying connection to {}, available attempts: {}", timer.getNode(), timer.getRetry());
         if (retryingConn.remove(timer.getNode()) == null)
@@ -238,6 +239,12 @@ public class StateMachine extends GenericProtocol {
                     ((AppOperation) op).getOpId(), ((AppOperation) op).getOp()));
 
         proposeNext();
+    }
+
+    private void uponLeaderElectedNotification(LeaderElectedNotification notification, short sourceProto){
+        logger.debug("Received notification: " + notification);
+
+        leader = notification.getLeader();
     }
 
     /*--------------------------------- Messages -------------------------------------- */
