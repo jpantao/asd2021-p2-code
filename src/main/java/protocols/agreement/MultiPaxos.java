@@ -5,6 +5,7 @@ import org.apache.logging.log4j.Logger;
 import protocols.agreement.messages.*;
 import protocols.agreement.notifications.DecidedNotification;
 import protocols.agreement.notifications.JoinedNotification;
+import protocols.agreement.notifications.LeaderElectedNotification;
 import protocols.agreement.requests.AddReplicaRequest;
 import protocols.agreement.requests.ProposeRequest;
 import protocols.agreement.requests.RemoveReplicaRequest;
@@ -117,12 +118,14 @@ public class MultiPaxos extends GenericProtocol {
             state = new PaxosState(np);
             instances.put(instance, state);
             sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()), from);
+            triggerNotification(new LeaderElectedNotification(leader));
         } else if (np > state.getNp()) {
             if(instance > 0)
                 cancelTimer(instances.get(instance-1).getLeaderTimerID());
             leader = from;
             state.setNp(np);
             sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()), from);
+            triggerNotification(new LeaderElectedNotification(leader));
         } else
             sendMessage(new RejectMessage(instance),from);
     }
@@ -140,6 +143,7 @@ public class MultiPaxos extends GenericProtocol {
         }
         if (state.hasPrepareQuorum()) {
             leader = self;
+            triggerNotification(new LeaderElectedNotification(self));
             state.updateAcceptQuorum(self);
             cancelTimer(state.getQuorumTimerID());
             int np = state.getNp();
