@@ -211,7 +211,7 @@ public class StateMachine extends GenericProtocol {
         logger.debug("Received request: " + request);
 
         waitingState.computeIfPresent(request.getInstance(), (instance, node) -> {
-            sendMessage(new JoinedMessage(instance, request.getState()), node);
+            sendMessage(new JoinedMessage(leader, instance, request.getState()), node);
             return null; //returning null removes the entry
         });
     }
@@ -254,9 +254,9 @@ public class StateMachine extends GenericProtocol {
         sendRequest(new InstallStateRequest(msg.getState()), HashApp.PROTO_ID);
         membership.add(self);
         state = State.ACTIVE;
-        leader = self; //TODO: ask goncalo for new leader notification triggers
+        if (msg.getLeader() != null)
+            leader = msg.getLeader();
         nextInstance = msg.getInstance();
-
         proposeNext();
     }
 
