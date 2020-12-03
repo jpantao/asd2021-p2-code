@@ -230,7 +230,7 @@ public class StateMachine extends GenericProtocol {
         Operation op = Operation.deserialize(notification.getOperation());
 
         if (op instanceof AddReplica)
-            addReplica(notification.getInstance(), ((AddReplica) op).getNode());
+            addReplica(notification.getInstance()+1, ((AddReplica) op).getNode());
         else if (op instanceof RemReplica)
             removeReplica(notification.getInstance(), ((RemReplica) op).getNode());
         else if (op instanceof AppOperation)
@@ -242,6 +242,7 @@ public class StateMachine extends GenericProtocol {
 
     /*--------------------------------- Messages -------------------------------------- */
     private void uponJoin(JoinMessage msg, Host from, short sourceProto, int channelId){
+        logger.debug("Received message: {}", msg);
         if(membership.contains(from))
             return;
 
@@ -249,15 +250,18 @@ public class StateMachine extends GenericProtocol {
     }
 
     private void uponJoined(JoinedMessage msg, Host from, short sourceProto, int channelId){
+        logger.debug("Received message: {}", msg);
         sendRequest(new InstallStateRequest(msg.getState()), HashApp.PROTO_ID);
         membership.add(self);
         state = State.ACTIVE;
         leader = self; //TODO: ask goncalo for new leader notification triggers
+        nextInstance = msg.getInstance();
 
         proposeNext();
     }
 
     private void uponRedirect(RedirectMessage msg, Host from, short sourceProto, int channelId){
+        logger.debug("Received message: {}", msg);
         newProposal(msg.getOperation());
     }
 
@@ -339,15 +343,22 @@ public class StateMachine extends GenericProtocol {
         pendingInternal.add(proposal);
     }
 
+    //If not used carefully you can be proposing more than one instance at a time
     private void proposeNext() {
         if (state != State.ACTIVE)
             return;
 
         if (!pendingInternal.isEmpty())
-            sendRequest(new ProposeRequest(nextInstance++, pendingInternal.peek()), agreement);
+            propose(pendingInternal.peek());
         else if (!pendingOperations.isEmpty())
-            sendRequest(new ProposeRequest(nextInstance++, pendingOperations.peek()), agreement);
+            propose(pendingOperations.peek());
     }
 
+    private void propose(byte[] op){
+        if (self.equals(leader))
+            sendRequest(new ProposeRequest(nextInstance++, op), agreement);
+        else
+            sendMessage(new RedirectMessage(op), leader);
+    }
 
 }
