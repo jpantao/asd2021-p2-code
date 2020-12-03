@@ -123,7 +123,7 @@ public class Paxos extends GenericProtocol {
         if (state == null) {
             state = new PaxosState(np);
             instances.put(instance, state);
-            sendMessage(new PrepareOkMessage(instance, state.getNa(), null), from);
+            sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()),from);
         } else if (np > state.getNp()) {
             state.setNp(msg.getN());
             sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()), from);
