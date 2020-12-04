@@ -198,10 +198,6 @@ public class StateMachine extends GenericProtocol {
         newProposalInternal(Operation.serialize(new Nop()));
     }
 
-
-
-
-
     /*--------------------------------- Requests -------------------------------------- */
     private void uponOrderRequest(OrderRequest request, short sourceProto) {
         logger.debug("Received request: " + request);
@@ -343,13 +339,13 @@ public class StateMachine extends GenericProtocol {
 
     private void newProposal(byte[] proposal) {
         if (pendingInternal.isEmpty() && pendingOperations.isEmpty() && state == State.ACTIVE)
-            sendRequest(new ProposeRequest(nextInstance++, proposal), agreement);
+            propose(proposal);
         pendingOperations.add(proposal);
     }
 
     private void newProposalInternal(byte[] proposal) {
         if (pendingInternal.isEmpty() && pendingOperations.isEmpty() && state == State.ACTIVE)
-            sendRequest(new ProposeRequest(nextInstance++, proposal), agreement);
+            propose(proposal);
         pendingInternal.add(proposal);
     }
 
