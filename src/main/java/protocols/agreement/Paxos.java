@@ -97,14 +97,12 @@ public class Paxos extends GenericProtocol {
             if (state.hasAcceptQuorum()) {
                 state.accept();
                 triggerNotification(new DecidedNotification(instance, state.getVa()));
-            } else
-                propose(instance, state.getNp() + membership.size(), state);
-        } else {
-            state = new PaxosState(n, request.getOperation(), membership);
-            instances.put(instance, state);
-            propose(instance, n, state);
+            }
+            return;
         }
-
+        state = new PaxosState(n, request.getOperation(), membership);
+        instances.put(instance, state);
+        propose(instance, n, state);
     }
 
     private void propose(int instance, int np, PaxosState state) {
