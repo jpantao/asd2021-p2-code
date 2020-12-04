@@ -41,7 +41,7 @@ public class PrepareOkMessage extends ProtoMessage {
         return "PromiseMessage{" +
                 "ins=" + ins +
                 ", n=" + na +
-                ", v=" + Hex.encodeHexString(va) +
+                ", v=" + (va != null ? Hex.encodeHexString(va) : null) +
                 '}';
     }
 

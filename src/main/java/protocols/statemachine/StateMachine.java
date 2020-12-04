@@ -198,6 +198,10 @@ public class StateMachine extends GenericProtocol {
         newProposalInternal(Operation.serialize(new Nop()));
     }
 
+
+
+
+
     /*--------------------------------- Requests -------------------------------------- */
     private void uponOrderRequest(OrderRequest request, short sourceProto) {
         logger.debug("Received request: " + request);

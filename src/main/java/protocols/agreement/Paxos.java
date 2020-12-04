@@ -1,6 +1,7 @@
 package protocols.agreement;
 
 
+import org.apache.commons.codec.binary.Hex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.agreement.messages.*;
@@ -48,8 +49,8 @@ public class Paxos extends GenericProtocol {
 
         /*---------------------- Register Request Handlers ------------------------- */
         registerRequestHandler(ProposeRequest.REQUEST_ID, this::uponPropose);
-        registerRequestHandler(ProposeRequest.REQUEST_ID, this::uponAddReplica);
-        registerRequestHandler(ProposeRequest.REQUEST_ID, this::uponRemoveReplica);
+        registerRequestHandler(AddReplicaRequest.REQUEST_ID, this::uponAddReplica);
+        registerRequestHandler(RemoveReplicaRequest.REQUEST_ID, this::uponRemoveReplica);
 
         /*---------------------- Register Notification Handlers -------------------- */
         subscribeNotification(ChannelReadyNotification.NOTIFICATION_ID, this::uponChannelCreated);
@@ -97,9 +98,12 @@ public class Paxos extends GenericProtocol {
             } else
                 propose(instance, state.getNp() + membership.size(), state);
         } else {
+            logger.debug("Operation: {} {} {}", Hex.encodeHexString(request.getOperation()), self, instance);
             state = new PaxosState(n, request.getOperation(), membership);
+            instances.put(instance, state);
             propose(instance, n, state);
         }
+
     }
 
     private void propose(int instance, int np, PaxosState state) {
@@ -140,6 +144,7 @@ public class Paxos extends GenericProtocol {
             state.setHighestNa(naReceived);
             state.setHighestVa(vaReceived);
         }
+        logger.debug("Received prepareOk: na-{} hna-{} va-{} hva-{}", naReceived, state.getHighestNa(), vaReceived, state.getHighestVa());
         if (state.hasPrepareQuorum()) {
             state.updateAcceptQuorum(self);
             cancelTimer(state.getQuorumTimerID());

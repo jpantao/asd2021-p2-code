@@ -97,7 +97,10 @@ public class MultiPaxos extends GenericProtocol {
 
     /*--------------------------------- Requests ----------------------------------- */
     private void uponPropose(ProposeRequest request, short sourceProto) {
-        propose(request.getInstance(), npDecided, new PaxosState(npDecided, request.getOperation()));
+        PaxosState state = new PaxosState(npDecided, request.getOperation());
+        int instance = request.getInstance();
+        instances.put(instance, state);
+        propose(instance, npDecided, state);
     }
 
     private void propose(int instance, int np, PaxosState state) {

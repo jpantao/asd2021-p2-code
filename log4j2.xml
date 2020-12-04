@@ -15,7 +15,7 @@
         <Logger level="info" name="pt.unl.fct.di.novasys.babel"/>
 
         <Root level="debug">
-            <AppenderRef ref="Console" level="info"/>
+            <AppenderRef ref="Console" level="debug"/>
         </Root>
     </Loggers>
 
