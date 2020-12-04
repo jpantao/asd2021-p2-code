@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>pt.unl.fct.di.novasys</groupId>
-    <artifactId>asd-phase2</artifactId>
+    <artifactId>asd-phase2</artifactId> byte[] proposal = Operation.serialize(new AppOperation(request.getOpId(), request.getOperation()));
     <version>0.0.2</version>
 
     <properties>

@@ -202,9 +202,8 @@ public class StateMachine extends GenericProtocol {
     private void uponOrderRequest(OrderRequest request, short sourceProto) {
         logger.debug("Received request: " + request);
 
-        //TODO: add redirects
-        byte[] proposal = Operation.serialize(new AppOperation(request.getOpId(), request.getOperation()));
-        newProposal(proposal);
+        newProposal(Operation.serialize(
+                new AppOperation(request.getOpId(), request.getOperation())));
     }
 
     /*--------------------------------- Replies --------------------------------------- */
