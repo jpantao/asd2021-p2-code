@@ -16,10 +16,10 @@ public class PaxosState {
     private int highestNa;
     private byte[] highestVa;
     private Set<Host> acceptQuorum;
-    private final Set<Host> prepareQuorum;
+    private Set<Host> prepareQuorum;
     private long quorumTimerID;
 
-    private long leaderTimerID; //only used in multipaxos
+    private long leaderTimerID; //only used in multi-paxos
     private Set<Host> membership;
 
     public PaxosState(int np, int na, byte[] va) {
@@ -86,14 +86,6 @@ public class PaxosState {
         return membership.size() == 0 ? -1 : membership.size() / 2 + 1;
     }
 
-    public void addReplica(Host host) {
-        membership.add(host);
-    }
-
-    public void removeReplica(Host host) {
-        membership.remove(host);
-    }
-
     public Set<Host> getMembership() {
         return membership;
     }
@@ -144,6 +136,10 @@ public class PaxosState {
 
     public void updatePrepareQuorum(Host p) {
         prepareQuorum.add(p);
+    }
+
+    public void resetPrepareQuorum() {
+        this.prepareQuorum = new HashSet<>();
     }
 
     public boolean hasPrepareQuorum() {

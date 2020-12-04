@@ -15,7 +15,6 @@ import protocols.agreement.utils.PaxosState;
 import protocols.statemachine.notifications.ChannelReadyNotification;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
-import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 import java.io.IOException;
@@ -89,7 +88,7 @@ public class MultiPaxos extends GenericProtocol {
             registerMessageHandler(cId, PrepareOkMessage.MSG_ID, this::uponPrepareOk);
             registerMessageHandler(cId, MPAcceptMessage.MSG_ID, this::uponAccept);
             registerMessageHandler(cId, AcceptOkMessage.MSG_ID, this::uponAcceptOk);
-            registerMessageHandler(cId, RejectMessage.MSG_ID, this::uponRejectMessage);
+            registerMessageHandler(cId, RejectMessage.MSG_ID, this::uponReject);
         } catch (HandlerRegistrationException e) {
             throw new AssertionError("Error registering message handler.", e);
         }
@@ -235,7 +234,7 @@ public class MultiPaxos extends GenericProtocol {
         }
     }
 
-    private void uponRejectMessage(RejectMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponReject(RejectMessage msg, Host from, short sourceProto, int channelId) {
         leader = null;
         cancelTimer(instances.get(msg.getInstance()).getQuorumTimerID());
     }
