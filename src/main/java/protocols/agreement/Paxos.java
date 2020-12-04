@@ -89,6 +89,8 @@ public class Paxos extends GenericProtocol {
 
     private void uponPropose(ProposeRequest request, short sourceProto) {
         int instance = request.getInstance();
+        String op = request.getOperation() == null ? "null" : String.valueOf(request.getOperation()[0]);
+        logger.debug("[{}] Propose {} : op-{}", instance, self, op);
         PaxosState state = instances.get(instance);
         if (state != null) {
             state.setMembership(membership);
@@ -98,8 +100,6 @@ public class Paxos extends GenericProtocol {
             } else
                 propose(instance, state.getNp() + membership.size(), state);
         } else {
-            String op = request.getOperation() == null ? "null" : String.valueOf(request.getOperation()[0]);
-            logger.debug("[{}] Propose {} : op-{}", instance, self, op);
             state = new PaxosState(n, request.getOperation(), membership);
             instances.put(instance, state);
             propose(instance, n, state);
