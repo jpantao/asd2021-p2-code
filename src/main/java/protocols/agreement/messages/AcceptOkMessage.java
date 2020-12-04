@@ -39,7 +39,7 @@ public class AcceptOkMessage extends ProtoMessage {
         return "AcceptedMessage{" +
                 "ins=" + ins +
                 ", n=" + n +
-                ", v=" + Hex.encodeHexString(v) +
+                ", v=" + (v != null ? Hex.encodeHexString(v) : null) +
                 '}';
     }
 

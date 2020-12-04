@@ -98,7 +98,8 @@ public class Paxos extends GenericProtocol {
             } else
                 propose(instance, state.getNp() + membership.size(), state);
         } else {
-            logger.debug("Operation: {} {} {}", Hex.encodeHexString(request.getOperation()), self, instance);
+            String op = request.getOperation() == null ? "null" : String.valueOf(request.getOperation()[0]);
+            logger.debug("[{}] Propose {} : op-{}", instance, self, op);
             state = new PaxosState(n, request.getOperation(), membership);
             instances.put(instance, state);
             propose(instance, n, state);
@@ -126,7 +127,7 @@ public class Paxos extends GenericProtocol {
         if (state == null) {
             state = new PaxosState(np);
             instances.put(instance, state);
-            sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()),from);
+            sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()), from);
         } else if (np > state.getNp()) {
             state.setNp(msg.getN());
             sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()), from);
@@ -141,10 +142,14 @@ public class Paxos extends GenericProtocol {
         byte[] vaReceived = msg.getVa();
         int highestNa = state.getHighestNa();
         if (naReceived > highestNa) {
+            logger.debug("[{}] PrepareOk (IF) {} -> {}: na-{} hna-{}", instance, from, self, naReceived, highestNa);
             state.setHighestNa(naReceived);
             state.setHighestVa(vaReceived);
         }
-        logger.debug("Received prepareOk: na-{} hna-{} va-{} hva-{}", naReceived, state.getHighestNa(), vaReceived, state.getHighestVa());
+
+        String hva = state.getHighestVa() == null ? "null" : String.valueOf(state.getHighestVa()[0]);
+        String var = vaReceived == null ? "null" : String.valueOf(vaReceived[0]);
+        logger.debug("[{}] PrepareOk (AFTER IF) {} -> {}: na-{} hna-{} va-{} hva-{}", instance, from, self, naReceived, state.getHighestNa(), var, hva);
         if (state.hasPrepareQuorum()) {
             state.updateAcceptQuorum(self);
             cancelTimer(state.getQuorumTimerID());
