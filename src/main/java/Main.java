@@ -1,9 +1,12 @@
+import protocols.agreement.MultiPaxos;
+import protocols.agreement.Paxos;
 import pt.unl.fct.di.novasys.babel.core.Babel;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.agreement.IncorrectAgreement;
 import protocols.app.HashApp;
 import protocols.statemachine.StateMachine;
+import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 
 import java.net.Inet4Address;
 import java.net.InetAddress;
@@ -40,12 +43,25 @@ public class Main {
         // IP of that interface and create a property "address=ip" to be used later by the channels.
         addInterfaceIp(props);
 
+
         // Application
         HashApp hashApp = new HashApp(props);
         // StateMachine Protocol
         StateMachine sm = new StateMachine(props);
+
         // Agreement Protocol
-        IncorrectAgreement agreement = new IncorrectAgreement(props);
+        short agreementId = Short.parseShort(props.getProperty("agreement"));
+        GenericProtocol agreement;
+        switch (agreementId){
+            case Paxos.PROTOCOL_ID:
+                agreement = new Paxos(props);
+                break;
+            case MultiPaxos.PROTOCOL_ID:
+                agreement = new MultiPaxos(props);
+                break;
+            default:
+                throw new IllegalStateException("Unexpected value: " + agreementId);
+        }
 
         //Register applications in babel
         babel.registerProtocol(hashApp);

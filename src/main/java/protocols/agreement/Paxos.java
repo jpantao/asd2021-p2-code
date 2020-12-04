@@ -3,10 +3,7 @@ package protocols.agreement;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import protocols.agreement.messages.AcceptMessage;
-import protocols.agreement.messages.AcceptOkMessage;
-import protocols.agreement.messages.PrepareMessage;
-import protocols.agreement.messages.PrepareOkMessage;
+import protocols.agreement.messages.*;
 import protocols.agreement.notifications.DecidedNotification;
 import protocols.agreement.notifications.JoinedNotification;
 import protocols.agreement.requests.AddReplicaRequest;
@@ -14,6 +11,7 @@ import protocols.agreement.requests.ProposeRequest;
 import protocols.agreement.requests.RemoveReplicaRequest;
 import protocols.agreement.timers.QuorumTimer;
 import protocols.agreement.utils.PaxosState;
+import protocols.statemachine.notifications.ChannelReadyNotification;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
@@ -30,7 +28,7 @@ public class Paxos extends GenericProtocol {
     public static final short PROTOCOL_ID = 110;
     public static final String PROTOCOL_NAME = "Paxos";
 
-    private final Host self; //My own address/port
+    private Host self; //My own address/port
 
     private final Map<Integer, PaxosState> instances;
     private final Set<Host> membership;
@@ -38,51 +36,52 @@ public class Paxos extends GenericProtocol {
     private final int quorumTimeout;
 
 
-    public Paxos(Properties props, Host self) throws IOException, HandlerRegistrationException {
+    public Paxos(Properties props) throws IOException, HandlerRegistrationException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
-        this.self = self;
         this.n = Integer.parseInt(props.getProperty("n"));
         this.quorumTimeout = Integer.parseInt(props.getProperty("quorum_timeout"));
         this.membership = new HashSet<>();
         this.instances = new HashMap<>();
 
-        //Create a properties object to setup channel-specific properties. See the channel description for more details.
-        Properties channelProps = new Properties();
-        channelProps.setProperty(TCPChannel.ADDRESS_KEY, props.getProperty("address")); //The address to bind to
-        channelProps.setProperty(TCPChannel.PORT_KEY, props.getProperty("port")); //The port to bind to
-        channelProps.setProperty(TCPChannel.HEARTBEAT_INTERVAL_KEY, "1000"); //Heartbeats interval for established connections
-        channelProps.setProperty(TCPChannel.HEARTBEAT_TOLERANCE_KEY, "3000"); //Time passed without heartbeats until closing a connection
-        channelProps.setProperty(TCPChannel.CONNECT_TIMEOUT_KEY, "1000"); //TCP connect timeout
-
-        //Id of the created channel
-        int channelId = createChannel(TCPChannel.NAME, channelProps); //Create the channel with the given properties
+        /*---------------------- Register Timer Handlers --------------------------- */
+        registerTimerHandler(QuorumTimer.TIMER_ID, this::uponQuorumTimeout);
 
         /*---------------------- Register Request Handlers ------------------------- */
         registerRequestHandler(ProposeRequest.REQUEST_ID, this::uponPropose);
         registerRequestHandler(ProposeRequest.REQUEST_ID, this::uponAddReplica);
         registerRequestHandler(ProposeRequest.REQUEST_ID, this::uponRemoveReplica);
 
-        /*---------------------- Register Message Serializers ---------------------- */
-        registerMessageSerializer(channelId, PrepareMessage.MSG_ID, PrepareMessage.serializer);
-        registerMessageSerializer(channelId, PrepareOkMessage.MSG_ID, PrepareOkMessage.serializer);
-        registerMessageSerializer(channelId, AcceptMessage.MSG_ID, AcceptMessage.serializer);
-        registerMessageSerializer(channelId, AcceptOkMessage.MSG_ID, AcceptOkMessage.serializer);
-
-        /*---------------------- Register Message Handlers ------------------------- */
-        registerMessageHandler(channelId, PrepareMessage.MSG_ID, this::uponPrepare);
-        registerMessageHandler(channelId, PrepareOkMessage.MSG_ID, this::uponPrepareOk);
-        registerMessageHandler(channelId, AcceptMessage.MSG_ID, this::uponAccept);
-        registerMessageHandler(channelId, AcceptOkMessage.MSG_ID, this::uponAcceptOk);
+        /*---------------------- Register Notification Handlers -------------------- */
+        subscribeNotification(ChannelReadyNotification.NOTIFICATION_ID, this::uponChannelCreated);
         subscribeNotification(JoinedNotification.NOTIFICATION_ID, this::uponJoinedNotification);
-
-        /*---------------------- Register Timer Handlers --------------------------- */
-        registerTimerHandler(QuorumTimer.TIMER_ID, this::uponQuorumTimeout);
-
     }
 
     @Override
     public void init(Properties props) {
+        //Nothing to do here, we just wait for events from the application or agreement
+    }
 
+    private void uponChannelCreated(ChannelReadyNotification notification, short sourceProto) {
+        int cId = notification.getChannelId();
+        self = notification.getMyself();
+        logger.info("Channel {} created, I am {}", cId, self);
+        // Allows this protocol to receive events from this channel.
+        registerSharedChannel(cId);
+        /*---------------------- Register Message Serializers ----------------------- */
+        registerMessageSerializer(cId, PrepareMessage.MSG_ID, PrepareMessage.serializer);
+        registerMessageSerializer(cId, PrepareOkMessage.MSG_ID, PrepareOkMessage.serializer);
+        registerMessageSerializer(cId, AcceptMessage.MSG_ID, AcceptMessage.serializer);
+        registerMessageSerializer(cId, AcceptOkMessage.MSG_ID, AcceptOkMessage.serializer);
+
+        /*---------------------- Register Message Handlers -------------------------- */
+        try {
+            registerMessageHandler(cId, PrepareMessage.MSG_ID, this::uponPrepare);
+            registerMessageHandler(cId, PrepareOkMessage.MSG_ID, this::uponPrepareOk);
+            registerMessageHandler(cId, AcceptMessage.MSG_ID, this::uponAccept);
+            registerMessageHandler(cId, AcceptOkMessage.MSG_ID, this::uponAcceptOk);
+        } catch (HandlerRegistrationException e) {
+            throw new AssertionError("Error registering message handler.", e);
+        }
     }
 
     /*--------------------------------- Requests ----------------------------------- */

@@ -140,7 +140,7 @@ public class StateMachine extends GenericProtocol {
 
     @Override
     public void init(Properties props) {
-        //Inform the state machine protocol about the channel we created in the constructor
+        //Inform the agreement protocol about the channel we created in the constructor
         triggerNotification(new ChannelReadyNotification(channelId, self));
 
         String host = props.getProperty("initial_membership");
