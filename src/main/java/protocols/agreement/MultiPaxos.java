@@ -120,18 +120,29 @@ public class MultiPaxos extends GenericProtocol {
         int instance = msg.getInstance();
         int np = msg.getN();
         PaxosState state = instances.get(instance);
+        long leaderTimer;
         if (state == null) {
             leader = from;
             state = new PaxosState(np);
             instances.put(instance, state);
             sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()), from);
+            leaderTimer = setupTimer(new LeaderTimer(instance), quorumTimeout);
+            state.setLeaderTimerID(leaderTimer);
             triggerNotification(new LeaderElectedNotification(leader));
         } else if (np > state.getNp()) {
-            if (instance > 0)
-                cancelTimer(instances.get(instance - 1).getLeaderTimerID());
+            if (state.getLeaderTimerID() > 0)
+                cancelTimer(state.getLeaderTimerID());
+            PaxosState previousState = instances.get(instance - 1);
+            long previousLeaderTimerID = previousState.getLeaderTimerID();
+            if (previousLeaderTimerID > 0) {
+                cancelTimer(previousLeaderTimerID);
+                previousState.setLeaderTimerID(-1);
+            }
             leader = from;
             state.setNp(np);
             sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()), from);
+            leaderTimer = setupTimer(new LeaderTimer(instance), quorumTimeout);
+            state.setLeaderTimerID(leaderTimer);
             triggerNotification(new LeaderElectedNotification(leader));
         } else
             sendMessage(new RejectMessage(instance), from);
@@ -178,14 +189,22 @@ public class MultiPaxos extends GenericProtocol {
             instances.put(instance, state);
         }
         if (np >= state.getNp()) {
+            if (state.getLeaderTimerID() > 0)
+                cancelTimer(state.getLeaderTimerID());
+            PaxosState previousState = instances.get(instance - 1);
+            long previousLeaderTimerID = previousState.getLeaderTimerID();
+            if (previousLeaderTimerID > 0) {
+                cancelTimer(previousLeaderTimerID);
+                previousState.setLeaderTimerID(-1);
+            }
             leader = from;
             triggerNotification(new LeaderElectedNotification(from));
-            if (instance > 0)
-                cancelTimer(instances.get(instance - 1).getLeaderTimerID());
+            long leaderTimer = setupTimer(new LeaderTimer(instance), quorumTimeout);
+            state.setLeaderTimerID(leaderTimer);
+
             state.setNa(np);
             state.setVa(newOp);
             sendMessage(new AcceptOkMessage(instance, np, newOp), from);
-            state.setQuorumTimerID(setupTimer(new LeaderTimer(instance), quorumTimeout));
         } else
             sendMessage(new RejectMessage(instance), from);
     }
@@ -208,6 +227,7 @@ public class MultiPaxos extends GenericProtocol {
             state.accept();
             triggerNotification(new DecidedNotification(instance, v));
             opDecided = v;
+            npDecided = n;
 
         }
     }
