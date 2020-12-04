@@ -31,11 +31,12 @@ public class MultiPaxos extends GenericProtocol {
     private final Host self; //My own address/port
 
     private final Map<Integer, PaxosState> instances;
-    private Set<Host> membership;
+    private final Set<Host> membership;
     private final int n;
     private final int quorumTimeout;
     private Host leader; //if true it believes he is a leader
     private byte[] opDecided;
+    private int npDecided;
 
 
     public MultiPaxos(Properties props, Host self) throws IOException, HandlerRegistrationException {
@@ -47,6 +48,7 @@ public class MultiPaxos extends GenericProtocol {
         this.instances = new HashMap<>();
         this.leader = null;
         this.opDecided = null;
+        this.npDecided = n;
 
         //Create a properties object to setup channel-specific properties. See the channel description for more details.
         Properties channelProps = new Properties();
@@ -80,7 +82,7 @@ public class MultiPaxos extends GenericProtocol {
         subscribeNotification(JoinedNotification.NOTIFICATION_ID, this::uponJoinedNotification);
 
         /*---------------------- Register Timer Handlers --------------------------- */
-        registerTimerHandler(LeaderTimer.TIMER_ID,this::uponLeaderTimeout);
+        registerTimerHandler(LeaderTimer.TIMER_ID, this::uponLeaderTimeout);
         registerTimerHandler(QuorumTimer.TIMER_ID, this::uponQuorumTimeout);
 
     }
@@ -90,18 +92,18 @@ public class MultiPaxos extends GenericProtocol {
     }
 
     private void uponPropose(ProposeRequest request, short sourceProto) {
-        propose(request.getInstance(),n,new PaxosState(n,request.getOperation()));
+        propose(request.getInstance(), npDecided, new PaxosState(npDecided, request.getOperation()));
     }
 
     private void propose(int instance, int np, PaxosState state) {
         state.setNp(np);
         state.updatePrepareQuorum(self);
         for (Host p : state.getMembership()) {
-            if(!p.equals(self)) {
+            if (!p.equals(self)) {
                 if (!leader.equals(self))
                     sendMessage(new PrepareMessage(instance, np), p);
                 else
-                    sendMessage(new MPAcceptMessage(instance,np,opDecided,state.getVa()), p);
+                    sendMessage(new MPAcceptMessage(instance, np, opDecided, state.getVa()), p);
             }
         }
         long quorumTimer = setupTimer(new QuorumTimer(instance), quorumTimeout);
@@ -120,14 +122,14 @@ public class MultiPaxos extends GenericProtocol {
             sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()), from);
             triggerNotification(new LeaderElectedNotification(leader));
         } else if (np > state.getNp()) {
-            if(instance > 0)
-                cancelTimer(instances.get(instance-1).getLeaderTimerID());
+            if (instance > 0)
+                cancelTimer(instances.get(instance - 1).getLeaderTimerID());
             leader = from;
             state.setNp(np);
             sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()), from);
             triggerNotification(new LeaderElectedNotification(leader));
         } else
-            sendMessage(new RejectMessage(instance),from);
+            sendMessage(new RejectMessage(instance), from);
     }
 
     private void uponPrepareOk(PrepareOkMessage msg, Host from, short sourceProto, int channelId) {
@@ -150,7 +152,7 @@ public class MultiPaxos extends GenericProtocol {
             byte[] v = state.getHighestVa();
             for (Host p : state.getMembership()) {
                 if (!p.equals(self))
-                    sendMessage(new MPAcceptMessage(instance, np,null,v), p);
+                    sendMessage(new MPAcceptMessage(instance, np, null, v), p);
             }
             long quorumTimer = setupTimer(new QuorumTimer(instance), quorumTimeout);
             state.setQuorumTimerID(quorumTimer);
@@ -163,36 +165,44 @@ public class MultiPaxos extends GenericProtocol {
         byte[] opDecided = msg.getOpDecided();
         byte[] newOp = msg.getNewOp();
         PaxosState state = instances.get(instance);
-        if(opDecided != null)
-            triggerNotification(new DecidedNotification(np,opDecided));
-        if(state == null) {
+        if (opDecided != null)
+            triggerNotification(new DecidedNotification(np, opDecided));
+        if (state == null) {
             leader = from;
-            state = new PaxosState(np,newOp);
-            instances.put(instance,state);
+            state = new PaxosState(np, newOp);
+            instances.put(instance, state);
         }
-        if(leader.equals(from)) {
-            if (np >= state.getNp()) {
-                if(instance > 0)
-                    cancelTimer(instances.get(instance-1).getLeaderTimerID());
-                state.setNa(np);
-                state.setVa(newOp);
-                sendMessage(new AcceptOkMessage(instance,np,newOp),from);
-                state.setQuorumTimerID(setupTimer(new LeaderTimer(instance),quorumTimeout));
-            }
+        if (np >= state.getNp()) {
+            leader = from;
+            triggerNotification(new LeaderElectedNotification(from));
+            if (instance > 0)
+                cancelTimer(instances.get(instance - 1).getLeaderTimerID());
+            state.setNa(np);
+            state.setVa(newOp);
+            sendMessage(new AcceptOkMessage(instance, np, newOp), from);
+            state.setQuorumTimerID(setupTimer(new LeaderTimer(instance), quorumTimeout));
         } else
-            sendMessage(new RejectMessage(instance),from);
+            sendMessage(new RejectMessage(instance), from);
     }
 
     private void uponAcceptOk(AcceptOkMessage msg, Host from, short sourceProto, int channelId) {
         int instance = msg.getInstance();
         byte[] v = msg.getV();
+        int n = msg.getN();
         PaxosState state = instances.get(instance);
+
+        if (n > state.getNa()) {
+            state.setNa(n);
+            state.setVa(v);
+            state.resetAcceptQuorum();
+        }
         state.updateAcceptQuorum(from);
         if (!state.accepted() && state.hasAcceptQuorum()) {
             cancelTimer(state.getQuorumTimerID());
             state.accept();
             triggerNotification(new DecidedNotification(instance, v));
             opDecided = v;
+
         }
     }
 
@@ -222,7 +232,7 @@ public class MultiPaxos extends GenericProtocol {
     private void timeout(int instance) {
         PaxosState state = instances.get(instance);
         if (!state.accepted())
-            propose(instance, state.getNp() + membership.size(), state);
+            propose(instance, state.getNp() + membership.size() + n, state);
     }
 
     private void uponQuorumTimeout(QuorumTimer quorumTimer, long timerID) {

@@ -33,7 +33,7 @@ public class AppOperation extends Operation {
                 '}';
     }
 
-    public static Serializer<Operation> serializer = new Serializer<>() {
+    public static Serializer<Operation> serializer = new Serializer<Operation>() {
         @Override
         public void serialize(Operation operation, ByteBuf buf) {
             buf.writeLong(((AppOperation) operation).opId.getMostSignificantBits());

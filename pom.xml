@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>pt.unl.fct.di.novasys</groupId>
-    <artifactId>asd-phase2</artifactId> byte[] proposal = Operation.serialize(new AppOperation(request.getOpId(), request.getOperation()));
+    <artifactId>asd-phase2</artifactId>
     <version>0.0.2</version>
 
     <properties>
@@ -39,8 +39,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.8.1</version>
                 <configuration>
-                    <source>9</source>
-                    <target>9</target>
+                    <source>8</source>
+                    <target>8</target>
                 </configuration>
             </plugin>
 

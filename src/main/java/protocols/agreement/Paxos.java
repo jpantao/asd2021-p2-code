@@ -227,6 +227,6 @@ public class Paxos extends GenericProtocol {
         int instance = quorumTimer.getInstance();
         PaxosState state = instances.get(instance);
         if (!state.accepted())
-            propose(instance, state.getNp() + membership.size(), state);
+            propose(instance, state.getNp() + membership.size() + n, state);
     }
 }

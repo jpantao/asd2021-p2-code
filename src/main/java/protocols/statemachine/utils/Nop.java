@@ -13,7 +13,7 @@ public class Nop extends Operation {
         return "Nop{}";
     }
 
-    public static Serializer<Operation> serializer = new Serializer<>() {
+    public static Serializer<Operation> serializer = new Serializer<Operation>() {
         @Override
         public void serialize(Operation operation, ByteBuf buf) {
         }

@@ -25,7 +25,7 @@ public class AddReplica extends Operation {
                 '}';
     }
 
-    public static Serializer<Operation> serializer = new Serializer<>() {
+    public static Serializer<Operation> serializer = new Serializer<Operation>() {
         @Override
         public void serialize(Operation operation, ByteBuf buf) throws IOException {
             Host.serializer.serialize(((AddReplica) operation).node, buf);
