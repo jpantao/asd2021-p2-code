@@ -38,7 +38,7 @@ public class AcceptMessage extends ProtoMessage {
         return "AcceptMessage{" +
                 "ins=" + ins +
                 ", n=" + n +
-                ", v=" + (v != null ? Hex.encodeHexString(v) : null) +
+                ", v=" + Hex.encodeHexString(v) +
                 '}';
     }
 
