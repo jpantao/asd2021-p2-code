@@ -229,7 +229,9 @@ public class StateMachine extends GenericProtocol {
 
         Operation op = Operation.deserialize(notification.getOperation());
 
-        if (op instanceof AddReplica)
+
+        //if (op instanceof NOP) do nothing
+        if (op instanceof AddReplica) //TODO: send decided instance or next instance?
             addReplica(notification.getInstance()+1, ((AddReplica) op).getNode());
         else if (op instanceof RemReplica)
             removeReplica(notification.getInstance(), ((RemReplica) op).getNode());
@@ -243,6 +245,7 @@ public class StateMachine extends GenericProtocol {
     private void uponLeaderElectedNotification(LeaderElectedNotification notification, short sourceProto){
         logger.debug("Received notification: " + notification);
 
+        //TODO: send instance along with the leader BEFORE TESTING MULTIPAXOS
         leader = notification.getLeader();
     }
 
@@ -353,7 +356,6 @@ public class StateMachine extends GenericProtocol {
     private void proposeNext() {
         if (state != State.ACTIVE)
             return;
-
         if (!pendingInternal.isEmpty())
             propose(pendingInternal.peek());
         else if (!pendingOperations.isEmpty())

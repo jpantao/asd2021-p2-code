@@ -101,11 +101,29 @@ public class Paxos extends GenericProtocol {
                 state.accept();
                 triggerNotification(new DecidedNotification(instance, state.getVa()));
             }
+            //TODO: nao deviamos fazer propose aqui? propose(instance, n, state);
             return;
         }
         state = new PaxosState(n, request.getOperation(), membership);
         instances.put(instance, state);
         propose(instance, n, state);
+
+        /*
+        PaxosState s = instances.putIfAbsent(instance,
+                new PaxosState(n, request.getOperation(), membership));
+        if(s != null){
+            s.setMembership(membership);
+            if (state.hasAcceptQuorum()) { //send accepted
+                state.accept();
+                triggerNotification(new DecidedNotification(instance, state.getVa()));
+            }
+            //TODO: atualizar o valor da proposta? nao sei se e necessario
+        }
+        propose(instance, n, state);
+        */
+
+
+
     }
 
     private void propose(int instance, int np, PaxosState state) {
