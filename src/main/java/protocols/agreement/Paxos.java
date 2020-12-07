@@ -100,9 +100,9 @@ public class Paxos extends GenericProtocol {
             if (state.hasAcceptQuorum()) {
                 state.accept();
                 triggerNotification(new DecidedNotification(instance, state.getVa()));
+                return;
             }
             //TODO: nao deviamos fazer propose aqui? propose(instance, n, state);
-            return;
         }
         state = new PaxosState(n, request.getOperation(), membership);
         instances.put(instance, state);
@@ -195,11 +195,11 @@ public class Paxos extends GenericProtocol {
             instances.put(instance, state);
         }
 
-
+        logger.debug("[{}] Accept (Before) {} -> {}: m-{} p-{} a-{}", instance, from, self, state.getQuorumSize(), state.getPrepareQuorum().size(), state.getAcceptQuorum().size());
         if (np >= state.getNp()) {
             state.setNa(np);
             state.setVa(v);
-            logger.debug("[{}] Accept (Before) {} -> {}: m-{} p-{} a-{}", instance, from, self, state.getQuorumSize(), state.getPrepareQuorum().size(), state.getAcceptQuorum().size());
+            logger.debug("[{}] Accept (after) {} -> {}: m-{} p-{} a-{}", instance, from, self, state.getQuorumSize(), state.getPrepareQuorum().size(), state.getAcceptQuorum().size());
 
             if (state.getQuorumSize() > 0)
                 for (Host p : state.getMembership()) {
@@ -207,9 +207,7 @@ public class Paxos extends GenericProtocol {
                         sendMessage(new AcceptOkMessage(instance, np, v), p);
                 }
             else {
-                Set<Host> quorumUnion = state.getPrepareQuorum();
-                quorumUnion.addAll(state.getAcceptQuorum());
-                for (Host p : quorumUnion) {
+                for (Host p : membership) {
                     if (!p.equals(self))
                         sendMessage(new AcceptOkMessage(instance, np, v), p);
                 }
@@ -227,14 +225,17 @@ public class Paxos extends GenericProtocol {
             state = new PaxosState(n, n, v);
             instances.put(instance, state);
         }
+        logger.debug("[{}] Accept OK (Before) {} -> {}: m-{} p-{} a-{}", instance, from, self, state.getQuorumSize(), state.getPrepareQuorum().size(), state.getAcceptQuorum().size());
 
         if (n > state.getNa()) {
             state.setNa(n);
             state.setVa(v);
             state.resetAcceptQuorum();
         }
+        logger.debug("[{}] Accept OK (After) {} -> {}: m-{} p-{} a-{}", instance, from, self, state.getQuorumSize(), state.getPrepareQuorum().size(), state.getAcceptQuorum().size());
         state.updateAcceptQuorum(from);
         if (!state.accepted() && state.hasAcceptQuorum()) {
+
             state.accept();
             triggerNotification(new DecidedNotification(instance, v));
         }
