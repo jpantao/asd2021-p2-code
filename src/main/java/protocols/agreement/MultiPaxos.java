@@ -55,8 +55,8 @@ public class MultiPaxos extends GenericProtocol {
 
         /*---------------------- Register Request Handlers ------------------------- */
         registerRequestHandler(ProposeRequest.REQUEST_ID, this::uponPropose);
-        registerRequestHandler(ProposeRequest.REQUEST_ID, this::uponAddReplica);
-        registerRequestHandler(ProposeRequest.REQUEST_ID, this::uponRemoveReplica);
+        registerRequestHandler(AddReplicaRequest.REQUEST_ID, this::uponAddReplica);
+        registerRequestHandler(RemoveReplicaRequest.REQUEST_ID, this::uponRemoveReplica);
 
 
         /*---------------------- Register Notification Handlers -------------------- */
