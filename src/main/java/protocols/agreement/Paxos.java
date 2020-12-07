@@ -117,12 +117,9 @@ public class Paxos extends GenericProtocol {
                 state.accept();
                 triggerNotification(new DecidedNotification(instance, state.getVa()));
             }
-            //TODO: atualizar o valor da proposta? nao sei se e necessario
         }
         propose(instance, n, state);
         */
-
-
 
     }
 
