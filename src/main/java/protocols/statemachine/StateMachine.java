@@ -239,9 +239,10 @@ public class StateMachine extends GenericProtocol {
                     ((AppOperation) op).getOpId(), ((AppOperation) op).getOp()));
         }
 
-        triggerNotification(new ExecutedNotification(notification.getInstance()));
-        nextInstance = notification.getInstance()+1;
+        if(pendingInternal.isEmpty() && pendingOperations.isEmpty())
+            triggerNotification(new ExecutedNotification(notification.getInstance()));
 
+        nextInstance = notification.getInstance()+1;
         proposeNext();
     }
 
