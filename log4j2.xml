@@ -20,7 +20,7 @@
         <Logger level="info" name="protocols.app.HashApp"/>
         <Logger level="info" name="protocols.statemachine.StateMachine"/>
         <Logger level="info" name="protocols.agreement.MultiPaxos"/>
-        <Logger level="debug" name="protocols.agreement.Paxos"/>
+        <Logger level="info" name="protocols.agreement.Paxos"/>
 
         <Root level="debug">
             <AppenderRef ref="Console" level="info"/>

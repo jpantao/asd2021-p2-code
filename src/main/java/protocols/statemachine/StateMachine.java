@@ -224,16 +224,16 @@ public class StateMachine extends GenericProtocol {
         Operation op = Operation.deserialize(notification.getOperation());
 
         if (op instanceof Nop)
-            logger.info("Instance: {} -> Decided Nop", notification.getInstance());
+            logger.debug("Instance: {} -> Decided Nop", notification.getInstance());
         else if (op instanceof AddReplica) {
             //TODO question: send decided instance or next instance?
-            logger.info("Instance: {} -> Decided AddReplica {}", notification.getInstance(), ((AddReplica) op).getNode());
+            logger.debug("Instance: {} -> Decided AddReplica {}", notification.getInstance(), ((AddReplica) op).getNode());
             addReplica(notification.getInstance()+1, ((AddReplica) op).getNode());
         } else if (op instanceof RemReplica) {
-            logger.info("Instance: {} -> Decided RemReplica {}", notification.getInstance(), ((RemReplica) op).getNode());
+            logger.debug("Instance: {} -> Decided RemReplica {}", notification.getInstance(), ((RemReplica) op).getNode());
             removeReplica(notification.getInstance(), ((RemReplica) op).getNode());
         } else if (op instanceof AppOperation) {
-            logger.info("Instance: {} -> Decided AppOperation", notification.getInstance());
+            logger.debug("Instance: {} -> Decided AppOperation", notification.getInstance());
             triggerNotification(new ExecuteNotification(
                     ((AppOperation) op).getOpId(), ((AppOperation) op).getOp()));
         }
