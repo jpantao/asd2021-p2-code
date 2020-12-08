@@ -92,26 +92,22 @@ public class Paxos extends GenericProtocol {
 
     private void uponPropose(ProposeRequest request, short sourceProto) {
         int instance = request.getInstance();
-        String op = request.getOperation() == null ? "null" : String.valueOf(request.getOperation()[0]);
-        logger.debug("[{}] Propose {} : op-{}", instance, self, op);
-        PaxosState state = instances.get(instance);
-        if (state != null) {
-            if (tryToDecide(state, instance)) {
-                return;
-            }
+        if (last_executed_instance < instance) {
+            String op = request.getOperation() == null ? "null" : String.valueOf(request.getOperation()[0]);
+            logger.debug("[{}] Propose {} : op-{}", instance, self, op);
+            PaxosState state = new PaxosState(n, request.getOperation());
+            //propose(instance, state.getNp(), state);
+            instances.put(instance, state);
+            propose(instance, n, state);
         }
-        state = new PaxosState(n, request.getOperation());
-        //propose(instance, state.getNp(), state);
-        instances.put(instance, state);
-        propose(instance, n, state);
+
     }
 
-    /*--------------------------------- Requests ----------------------------------- */
+    /*--------------------------------- Requests -------------------<---------------- */
 
     private boolean tryToDecide(PaxosState state, int instance) {
-        if (last_executed_instance < instance && state.getAcceptQuorum().size() > membership.size() / 2) {
+        if ((last_executed_instance == instance - 1) && state.getAcceptQuorum().size() > membership.size() / 2) {
             triggerNotification(new DecidedNotification(instance, state.getVa()));
-            last_executed_instance++;
             return true;
         }
         return false;
@@ -224,9 +220,12 @@ public class Paxos extends GenericProtocol {
 
 
     private void uponExecuted(ExecutedNotification notification, short sourceProto) {
-        PaxosState state = instances.get(notification.getInstance() + 1);
-        if (state != null)
-            tryToDecide(state, notification.getInstance() + 1);
+        if (last_executed_instance < notification.getInstance()) {
+            last_executed_instance = notification.getInstance();
+            PaxosState state = instances.get(notification.getInstance() + 1);
+            if (state != null)
+                tryToDecide(state, notification.getInstance() + 1);
+        }
     }
 
     private void uponRemoveReplica(RemoveReplicaRequest request, short sourceProto) {

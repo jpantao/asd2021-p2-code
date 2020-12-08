@@ -239,10 +239,10 @@ public class StateMachine extends GenericProtocol {
         }
 
         nextInstance = notification.getInstance() + 1;
-        if (pendingInternal.isEmpty() && pendingOperations.isEmpty())
-            triggerNotification(new ExecutedNotification(notification.getInstance()));
-        else
-            proposeNext();
+        //if (pendingInternal.isEmpty() && pendingOperations.isEmpty())
+        triggerNotification(new ExecutedNotification(notification.getInstance()));
+        //else
+        proposeNext();
     }
 
     private void uponLeaderElectedNotification(LeaderElectedNotification notification, short sourceProto) {
