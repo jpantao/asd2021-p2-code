@@ -102,7 +102,6 @@ public class Paxos extends GenericProtocol {
                 triggerNotification(new DecidedNotification(instance, state.getVa()));
                 return;
             }
-            //TODO: nao deviamos fazer propose aqui? propose(instance, n, state);
         }
         state = new PaxosState(n, request.getOperation(), membership);
         instances.put(instance, state);
