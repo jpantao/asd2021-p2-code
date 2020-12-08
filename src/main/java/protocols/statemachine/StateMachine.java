@@ -163,7 +163,7 @@ public class StateMachine extends GenericProtocol {
             membership.forEach(this::openConnection);
         }
 
-        setupPeriodicTimer(new NopTimer(), nopInterval, nopInterval);
+        //setupPeriodicTimer(new NopTimer(), nopInterval, nopInterval);
     }
 
     /*--------------------------------- Timers ---------------------------------------- */
@@ -224,16 +224,16 @@ public class StateMachine extends GenericProtocol {
         Operation op = Operation.deserialize(notification.getOperation());
 
         if (op instanceof Nop)
-            logger.info("Instance: {} -> Decided Nop", notification.getInstance());
+            logger.debug("Instance: {} -> Decided Nop", notification.getInstance());
         else if (op instanceof AddReplica) {
             //TODO question: send decided instance or next instance?
-            logger.info("Instance: {} -> Decided AddReplica {}", notification.getInstance(), ((AddReplica) op).getNode());
+            logger.debug("Instance: {} -> Decided AddReplica {}", notification.getInstance(), ((AddReplica) op).getNode());
             addReplica(notification.getInstance()+1, ((AddReplica) op).getNode());
         } else if (op instanceof RemReplica) {
-            logger.info("Instance: {} -> Decided RemReplica {}", notification.getInstance(), ((RemReplica) op).getNode());
+            logger.debug("Instance: {} -> Decided RemReplica {}", notification.getInstance(), ((RemReplica) op).getNode());
             removeReplica(notification.getInstance(), ((RemReplica) op).getNode());
         } else if (op instanceof AppOperation) {
-            logger.info("Instance: {} -> Decided AppOperation", notification.getInstance());
+            logger.debug("Instance: {} -> Decided AppOperation", notification.getInstance());
             triggerNotification(new ExecuteNotification(
                     ((AppOperation) op).getOpId(), ((AppOperation) op).getOp()));
         }
@@ -330,7 +330,7 @@ public class StateMachine extends GenericProtocol {
     private void addReplica(int instance, Host node) {
         if (membership.contains(node))
             return;
-        logger.debug("Instance: {} ->  Adding replica: {}", instance, node);
+        logger.trace("Instance: {} ->  Adding replica: {}", instance, node);
         joiningConn.put(node, instance);
         openConnection(node);
         sendRequest(new AddReplicaRequest(instance, node), agreement); //request before establishing the connection?
@@ -339,7 +339,7 @@ public class StateMachine extends GenericProtocol {
     private void removeReplica(int instance, Host node) {
         if (!membership.contains(node))
             return;
-        logger.debug("Instance: {} ->  Removing replica: {}", instance, node);
+        logger.trace("Instance: {} ->  Removing replica: {}", instance, node);
         sendRequest(new RemoveReplicaRequest(instance, node), agreement);
         membership.remove(node);
         closeConnection(node);
@@ -369,10 +369,10 @@ public class StateMachine extends GenericProtocol {
 
     private void propose(byte[] op){
         if (self.equals(leader)) {
-            logger.debug("Sending to myself: inst-{} op-{} -> leader-{}", nextInstance, "operation", leader);
+            logger.trace("Sending to myself: inst-{} op -> {}", nextInstance,  leader);
             sendRequest(new ProposeRequest(nextInstance++, op), agreement);
         } else {
-            logger.debug("Sending to leader: op-{} -> leader-{} ", "operation", leader);
+            logger.trace("Sending to leader: op -> {} ", leader);
             sendMessage(new RedirectMessage(op), leader);
         }
     }
