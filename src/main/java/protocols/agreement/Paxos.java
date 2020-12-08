@@ -96,13 +96,14 @@ public class Paxos extends GenericProtocol {
         logger.debug("[{}] Propose {} : op-{}", instance, self, op);
         PaxosState state = instances.get(instance);
         if (state != null) {
-            if (!tryToDecide(state, instance))
-                propose(instance, state.getNp(), state);
-        } else {
-            state = new PaxosState(n, request.getOperation());
-            instances.put(instance, state);
-            propose(instance, n, state);
+            if (tryToDecide(state, instance)) {
+                return;
+            }
         }
+        state = new PaxosState(n, request.getOperation());
+        //propose(instance, state.getNp(), state);
+        instances.put(instance, state);
+        propose(instance, n, state);
     }
 
     /*--------------------------------- Requests ----------------------------------- */
@@ -136,8 +137,8 @@ public class Paxos extends GenericProtocol {
         } else if (np > state.getNp()) {
             state.setNp(msg.getN());
             sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()), from);
-        } //else
-        //sendMessage(new RejectMessage(instance), from);
+        } else
+            sendMessage(new RejectMessage(instance), from);
     }
 
     private void uponPrepareOk(PrepareOkMessage msg, Host from, short sourceProto, int channelId) {
