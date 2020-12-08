@@ -1,5 +1,6 @@
 package protocols.statemachine;
 
+import org.apache.commons.codec.binary.Hex;
 import protocols.agreement.notifications.JoinedNotification;
 import protocols.agreement.notifications.LeaderElectedNotification;
 import protocols.agreement.requests.AddReplicaRequest;
@@ -33,17 +34,6 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 
-/**
- * This is NOT a fully functional StateMachine implementation.
- * This is simply an example of things you can do, and can be used as a starting point.
- * <p>
- * You are free to change/delete anything in this class, including its fields.
- * The only thing that you cannot change are the notifications/requests between the StateMachine and the APPLICATION
- * You can change the requests/notification between the StateMachine and AGREEMENT protocol, however make sure it is
- * coherent with the specification shown in the project description.
- * <p>
- * Do not assume that any logic implemented here is correct, think for yourself!
- */
 public class StateMachine extends GenericProtocol {
     private static final Logger logger = LogManager.getLogger(StateMachine.class);
 
@@ -223,21 +213,25 @@ public class StateMachine extends GenericProtocol {
 
         if (Arrays.equals(pendingInternal.peek(), notification.getOperation()))
             pendingOperations.poll();
-
-        if (Arrays.equals(pendingOperations.peek(), notification.getOperation()))
+        else if (Arrays.equals(pendingOperations.peek(), notification.getOperation()))
             pendingOperations.poll();
 
         Operation op = Operation.deserialize(notification.getOperation());
 
-
-        //if (op instanceof NOP) do nothing
-        if (op instanceof AddReplica) //TODO: send decided instance or next instance?
+        if (op instanceof Nop)
+            logger.debug("Instance: {} -> Decided Nop", notification.getInstance());
+        else if (op instanceof AddReplica) {
+            //TODO question: send decided instance or next instance?
+            logger.debug("Instance: {} -> Decided AddReplica {}", notification.getInstance(), ((AddReplica) op).getNode());
             addReplica(notification.getInstance()+1, ((AddReplica) op).getNode());
-        else if (op instanceof RemReplica)
+        } else if (op instanceof RemReplica) {
+            logger.debug("Instance: {} -> Decided RemReplica {}", notification.getInstance(), ((RemReplica) op).getNode());
             removeReplica(notification.getInstance(), ((RemReplica) op).getNode());
-        else if (op instanceof AppOperation)
+        } else if (op instanceof AppOperation) {
+            logger.debug("Instance: {} -> Decided AppOperation", notification.getInstance());
             triggerNotification(new ExecuteNotification(
                     ((AppOperation) op).getOpId(), ((AppOperation) op).getOp()));
+        }
 
         proposeNext();
     }
@@ -245,7 +239,7 @@ public class StateMachine extends GenericProtocol {
     private void uponLeaderElectedNotification(LeaderElectedNotification notification, short sourceProto){
         logger.debug("Received notification: " + notification);
 
-        //TODO: send instance along with the leader BEFORE TESTING MULTIPAXOS
+        //TODO BEFORE TESTING MULTIPAXOS: send instance along with the leader
         leader = notification.getLeader();
     }
 
@@ -281,20 +275,24 @@ public class StateMachine extends GenericProtocol {
 
     /* --------------------------------- TCPChannel Events ---------------------------- */
     private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
-        logger.info("Connection to {} is up", event.getNode());
+        logger.debug("Connection to {} is up", event.getNode());
 
-        //TODO: could send a join message to only one replica
-        if (state == State.JOINING)
+        //TODO optimization: could send a join message to only one replica
+        if (state == State.JOINING) {
+            logger.debug("Sending join request to {}", event.getNode());
             sendMessage(new JoinMessage(), event.getNode());
+        }
 
-        if (state == State.ACTIVE)
+        else if (state == State.ACTIVE)
             joiningConn.computeIfPresent(event.getNode(), (node, instance) -> {
+                logger.debug("Node {} joining on instance {} -> waiting for state...", node, instance);
                 waitingState.put(instance, node);
                 sendRequest(new CurrentStateRequest(instance), HashApp.PROTO_ID);
                 return null; //returning null removes the entry
             });
 
         retryingConn.computeIfPresent(event.getNode(), (node, timerId) -> {
+            logger.debug("Stop attempts to connect to {}", node);
             cancelTimer(timerId); //stop attempts to connect
             return null; //returning null removes the entry
         });
@@ -327,6 +325,7 @@ public class StateMachine extends GenericProtocol {
     private void addReplica(int instance, Host node) {
         if (membership.contains(node))
             return;
+        logger.debug("Instance: {} ->  Adding replica: {}", instance, node);
         joiningConn.put(node, instance);
         openConnection(node);
         sendRequest(new AddReplicaRequest(instance, node), agreement); //request before establishing the connection?
@@ -335,6 +334,7 @@ public class StateMachine extends GenericProtocol {
     private void removeReplica(int instance, Host node) {
         if (!membership.contains(node))
             return;
+        logger.debug("Instance: {} ->  Removing replica: {}", instance, node);
         sendRequest(new RemoveReplicaRequest(instance, node), agreement);
         membership.remove(node);
         closeConnection(node);
@@ -363,10 +363,13 @@ public class StateMachine extends GenericProtocol {
     }
 
     private void propose(byte[] op){
-        if (self.equals(leader))
+        if (self.equals(leader)) {
+            logger.debug("Sending to myself: inst-{} op-{} -> leader-{}", nextInstance, Hex.encodeHexString(op), leader);
             sendRequest(new ProposeRequest(nextInstance++, op), agreement);
-        else
+        } else {
+            logger.debug("Sending to leader: op-{} -> leader-{} ", Hex.encodeHexString(op), leader);
             sendMessage(new RedirectMessage(op), leader);
+        }
     }
 
 }

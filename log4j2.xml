@@ -16,6 +16,11 @@
         <Logger level="info" name="pt.unl.fct.di.novasys.channel"/>
         <Logger level="info" name="pt.unl.fct.di.novasys.babel"/>
 
+        <!-- Project package debug level -->
+        <Logger level="info" name="protocols.statemachine.StateMachine"/>
+        <Logger level="debug" name="protocols.agreement.MultiPaxos"/>
+        <Logger level="debug" name="protocols.agreement.Paxos"/>
+
         <Root level="debug">
             <AppenderRef ref="Console" level="debug"/>
             <AppenderRef ref="logfile" level="debug"/>
