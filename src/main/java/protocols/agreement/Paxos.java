@@ -124,7 +124,7 @@ public class Paxos extends GenericProtocol {
 
     private void propose(int instance, int np, PaxosState state) {
         state.setNp(np);
-        //state.updatePrepareQuorum(self);
+        state.updatePrepareQuorum(self);
         for (Host p : state.getMembership()) {
             if (!p.equals(self))
                 sendMessage(new PrepareMessage(instance, np), p);
@@ -170,7 +170,7 @@ public class Paxos extends GenericProtocol {
 
 
         if (state.hasPrepareQuorum()) {
-            //state.updateAcceptQuorum(self);
+            state.updateAcceptQuorum(self);
             cancelTimer(state.getQuorumTimerID());
             int np = state.getNp();
             byte[] v = state.getHighestVa();
