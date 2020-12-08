@@ -4,12 +4,10 @@ package protocols.agreement.utils;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 public class PaxosState {
 
-    private boolean acceptStatus;
     private int np;
     private int na;
     private byte[] va;
@@ -20,7 +18,6 @@ public class PaxosState {
     private long quorumTimerID;
 
     private long leaderTimerID; //only used in multi-paxos
-    private Set<Host> membership;
 
     public PaxosState(int np, int na, byte[] va) {
         this.np = np;
@@ -28,11 +25,9 @@ public class PaxosState {
         this.na = na;
         this.acceptQuorum = new HashSet<>();
         this.prepareQuorum = new HashSet<>();
-        this.acceptStatus = false;
         this.highestNa = na;
         this.highestVa = va;
         this.quorumTimerID = -1;
-        this.membership = new HashSet<>();
         this.leaderTimerID = -1;
     }
 
@@ -42,11 +37,9 @@ public class PaxosState {
         this.na = -1;
         this.acceptQuorum = new HashSet<>();
         this.prepareQuorum = new HashSet<>();
-        this.acceptStatus = false;
         this.highestNa = na;
         this.highestVa = va;
         this.quorumTimerID = -1;
-        this.membership = new HashSet<>();
         this.leaderTimerID = -1;
     }
 
@@ -56,38 +49,10 @@ public class PaxosState {
         this.na = -1;
         this.acceptQuorum = new HashSet<>();
         this.prepareQuorum = new HashSet<>();
-        this.acceptStatus = false;
         this.highestNa = na;
         this.highestVa = null;
         this.quorumTimerID = -1;
-        this.membership = new HashSet<>();
         this.leaderTimerID = -1;
-    }
-
-    public PaxosState(int np, byte[] va, Set<Host> membership) {
-        this.np = np;
-        this.va = va;
-        this.na = -1;
-        this.acceptQuorum = new HashSet<>();
-        this.prepareQuorum = new HashSet<>();
-        this.acceptStatus = false;
-        this.highestNa = na;
-        this.highestVa = va;
-        this.quorumTimerID = -1;
-        this.membership = membership;
-        this.leaderTimerID = -1;
-    }
-
-    public void setMembership(Set<Host> m) {
-        this.membership = m;
-    }
-
-    public int getQuorumSize() {
-        return membership.size() == 0 ? -1 : membership.size() / 2 + 1;
-    }
-
-    public Set<Host> getMembership() {
-        return membership;
     }
 
     public int getNp() {
@@ -126,10 +91,6 @@ public class PaxosState {
         acceptQuorum = new HashSet<>();
     }
 
-    public boolean hasAcceptQuorum() {
-        return getQuorumSize() > 0 && acceptQuorum.size() >= getQuorumSize();
-    }
-
     public Set<Host> getPrepareQuorum() {
         return prepareQuorum;
     }
@@ -140,18 +101,6 @@ public class PaxosState {
 
     public void resetPrepareQuorum() {
         this.prepareQuorum = new HashSet<>();
-    }
-
-    public boolean hasPrepareQuorum() {
-        return getQuorumSize() > 0 && prepareQuorum.size() >= getQuorumSize();
-    }
-
-    public void accept() {
-        acceptStatus = true;
-    }
-
-    public boolean accepted() {
-        return acceptStatus;
     }
 
     public byte[] getHighestVa() {

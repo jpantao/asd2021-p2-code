@@ -1,7 +1,7 @@
 package protocols.agreement;
 
 import protocols.agreement.messages.BroadcastMessage;
-import protocols.agreement.notifications.JoinedNotification;
+import protocols.statemachine.notifications.JoinedNotification;
 import protocols.agreement.requests.AddReplicaRequest;
 import protocols.agreement.requests.RemoveReplicaRequest;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;

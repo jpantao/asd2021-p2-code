@@ -1,7 +1,6 @@
 package protocols.statemachine;
 
-import org.apache.commons.codec.binary.Hex;
-import protocols.agreement.notifications.JoinedNotification;
+import protocols.statemachine.notifications.JoinedNotification;
 import protocols.agreement.notifications.LeaderElectedNotification;
 import protocols.agreement.requests.AddReplicaRequest;
 import protocols.agreement.requests.ProposeRequest;
