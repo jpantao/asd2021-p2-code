@@ -50,10 +50,15 @@ public class MultiPaxos extends GenericProtocol {
         this.npDecided = n;
 
         /*---------------------- Register Timer Handlers --------------------------- */
+        /*
         registerTimerHandler(LeaderTimer.TIMER_ID, this::uponLeaderTimeout);
         registerTimerHandler(QuorumTimer.TIMER_ID, this::uponQuorumTimeout);
+         */
 
         /*---------------------- Register Request Handlers ------------------------- */
+        /*
+
+         */
         registerRequestHandler(ProposeRequest.REQUEST_ID, this::uponPropose);
         registerRequestHandler(AddReplicaRequest.REQUEST_ID, this::uponAddReplica);
         registerRequestHandler(RemoveReplicaRequest.REQUEST_ID, this::uponRemoveReplica);
@@ -62,6 +67,7 @@ public class MultiPaxos extends GenericProtocol {
         /*---------------------- Register Notification Handlers -------------------- */
         subscribeNotification(ChannelReadyNotification.NOTIFICATION_ID, this::uponChannelCreated);
         subscribeNotification(JoinedNotification.NOTIFICATION_ID, this::uponJoinedNotification);
+
     }
 
     @Override

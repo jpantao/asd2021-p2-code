@@ -1,6 +1,5 @@
 package protocols.agreement;
 
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.agreement.messages.*;
@@ -91,18 +90,22 @@ public class Paxos extends GenericProtocol {
         }
     }
 
-    /*--------------------------------- Requests ----------------------------------- */
-
     private void uponPropose(ProposeRequest request, short sourceProto) {
         int instance = request.getInstance();
         String op = request.getOperation() == null ? "null" : String.valueOf(request.getOperation()[0]);
         logger.debug("[{}] Propose {} : op-{}", instance, self, op);
         PaxosState state = instances.get(instance);
-        if (state == null)
+        if (state != null) {
+            if (!tryToDecide(state, instance))
+                propose(instance, state.getNp(), state);
+        } else {
             state = new PaxosState(n, request.getOperation());
-        instances.put(instance, state);
-        propose(instance, n, state);
+            instances.put(instance, state);
+            propose(instance, n, state);
+        }
     }
+
+    /*--------------------------------- Requests ----------------------------------- */
 
     private boolean tryToDecide(PaxosState state, int instance) {
         if (last_executed_instance < instance && state.getAcceptQuorum().size() > membership.size() / 2) {
@@ -217,11 +220,12 @@ public class Paxos extends GenericProtocol {
         membership.addAll(notification.getMembership());
     }
 
+
     private void uponExecuted(ExecutedNotification notification, short sourceProto) {
+        last_executed_instance = notification.getInstance();
         PaxosState state = instances.get(last_executed_instance + 1);
         if (state != null)
             tryToDecide(state, last_executed_instance + 1);
-        last_executed_instance++;
     }
 
     private void uponRemoveReplica(RemoveReplicaRequest request, short sourceProto) {
