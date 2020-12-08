@@ -146,8 +146,8 @@ public class Paxos extends GenericProtocol {
         } else if (np > state.getNp()) {
             state.setNp(msg.getN());
             sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()), from);
-        } else
-            sendMessage(new RejectMessage(instance), from);
+        } //else
+            //sendMessage(new RejectMessage(instance), from);
     }
 
     private void uponPrepareOk(PrepareOkMessage msg, Host from, short sourceProto, int channelId) {

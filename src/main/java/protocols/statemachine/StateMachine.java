@@ -185,7 +185,9 @@ public class StateMachine extends GenericProtocol {
     private void uponNopTimer(NopTimer timer, long timerId) {
         if (!self.equals(leader)) //I'm not the leader
             return;
-        newProposalInternal(Operation.serialize(new Nop()));
+
+        if(pendingInternal.isEmpty() && pendingOperations.isEmpty())
+            newProposalInternal(Operation.serialize(new Nop()));
     }
 
     /*--------------------------------- Requests -------------------------------------- */
@@ -209,26 +211,29 @@ public class StateMachine extends GenericProtocol {
 
     /*--------------------------------- Notifications --------------------------------- */
     private void uponDecidedNotification(DecidedNotification notification, short sourceProto) {
-        logger.debug("Received notification: " + notification);
+        //logger.debug("Received notification: " + notification);
 
-        if (Arrays.equals(pendingInternal.peek(), notification.getOperation()))
+        if (Arrays.equals(pendingInternal.peek(), notification.getOperation())) {
+            //logger.debug("INTERNAL OPERATION instance {} size {}", notification.getInstance(), pendingInternal.size());
+            pendingInternal.poll();
+        } else if (Arrays.equals(pendingOperations.peek(), notification.getOperation())) {
+            //logger.debug("APPLICATION OPERATION");
             pendingOperations.poll();
-        else if (Arrays.equals(pendingOperations.peek(), notification.getOperation()))
-            pendingOperations.poll();
+        }
 
         Operation op = Operation.deserialize(notification.getOperation());
 
         if (op instanceof Nop)
-            logger.debug("Instance: {} -> Decided Nop", notification.getInstance());
+            logger.info("Instance: {} -> Decided Nop", notification.getInstance());
         else if (op instanceof AddReplica) {
             //TODO question: send decided instance or next instance?
-            logger.debug("Instance: {} -> Decided AddReplica {}", notification.getInstance(), ((AddReplica) op).getNode());
+            logger.info("Instance: {} -> Decided AddReplica {}", notification.getInstance(), ((AddReplica) op).getNode());
             addReplica(notification.getInstance()+1, ((AddReplica) op).getNode());
         } else if (op instanceof RemReplica) {
-            logger.debug("Instance: {} -> Decided RemReplica {}", notification.getInstance(), ((RemReplica) op).getNode());
+            logger.info("Instance: {} -> Decided RemReplica {}", notification.getInstance(), ((RemReplica) op).getNode());
             removeReplica(notification.getInstance(), ((RemReplica) op).getNode());
         } else if (op instanceof AppOperation) {
-            logger.debug("Instance: {} -> Decided AppOperation", notification.getInstance());
+            logger.info("Instance: {} -> Decided AppOperation", notification.getInstance());
             triggerNotification(new ExecuteNotification(
                     ((AppOperation) op).getOpId(), ((AppOperation) op).getOp()));
         }
@@ -299,14 +304,14 @@ public class StateMachine extends GenericProtocol {
     }
 
     private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
-        logger.debug("Connection to {} is down, cause {}", event.getNode(), event.getCause());
+        logger.error("Connection to {} is down, cause {}", event.getNode(), event.getCause());
 
         retryingConn.computeIfAbsent(event.getNode(), k -> //start retying connection
                 setupTimer(new RetryConnTimer(k, connMaxRetries), connRetryTimeout));
     }
 
     private void uponOutConnectionFailed(OutConnectionFailed<ProtoMessage> event, int channelId) {
-        logger.debug("Connection to {} failed, cause: {}", event.getNode(), event.getCause());
+        logger.error("Connection to {} failed, cause: {}", event.getNode(), event.getCause());
 
         retryingConn.computeIfAbsent(event.getNode(), k -> //start retying connection
                 setupTimer(new RetryConnTimer(k, connMaxRetries), connRetryTimeout));
@@ -364,10 +369,10 @@ public class StateMachine extends GenericProtocol {
 
     private void propose(byte[] op){
         if (self.equals(leader)) {
-            logger.debug("Sending to myself: inst-{} op-{} -> leader-{}", nextInstance, Hex.encodeHexString(op), leader);
+            logger.debug("Sending to myself: inst-{} op-{} -> leader-{}", nextInstance, "operation", leader);
             sendRequest(new ProposeRequest(nextInstance++, op), agreement);
         } else {
-            logger.debug("Sending to leader: op-{} -> leader-{} ", Hex.encodeHexString(op), leader);
+            logger.debug("Sending to leader: op-{} -> leader-{} ", "operation", leader);
             sendMessage(new RedirectMessage(op), leader);
         }
     }
