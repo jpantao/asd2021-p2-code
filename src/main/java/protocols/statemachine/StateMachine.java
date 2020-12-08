@@ -176,7 +176,7 @@ public class StateMachine extends GenericProtocol {
             openConnection(timer.getNode());
             long t = setupTimer(new RetryConnTimer(timer.getNode(), timer.getRetry() - 1), connRetryTimeout);
             retryingConn.put(timer.getNode(), t);
-        } else if (membership.contains(timer.getNode())){
+        } else if (membership.contains(timer.getNode())) {
             RemReplica op = new RemReplica(timer.getNode());
             newProposalInternal(Operation.serialize(op));
         }
@@ -186,7 +186,7 @@ public class StateMachine extends GenericProtocol {
         if (!self.equals(leader)) //I'm not the leader
             return;
 
-        if(pendingInternal.isEmpty() && pendingOperations.isEmpty())
+        if (pendingInternal.isEmpty() && pendingOperations.isEmpty())
             newProposalInternal(Operation.serialize(new Nop()));
     }
 
@@ -228,7 +228,7 @@ public class StateMachine extends GenericProtocol {
         else if (op instanceof AddReplica) {
             //TODO question: send decided instance or next instance?
             logger.debug("Instance: {} -> Decided AddReplica {}", notification.getInstance(), ((AddReplica) op).getNode());
-            addReplica(notification.getInstance()+1, ((AddReplica) op).getNode());
+            addReplica(notification.getInstance() + 1, ((AddReplica) op).getNode());
         } else if (op instanceof RemReplica) {
             logger.debug("Instance: {} -> Decided RemReplica {}", notification.getInstance(), ((RemReplica) op).getNode());
             removeReplica(notification.getInstance(), ((RemReplica) op).getNode());
@@ -238,14 +238,14 @@ public class StateMachine extends GenericProtocol {
                     ((AppOperation) op).getOpId(), ((AppOperation) op).getOp()));
         }
 
-        if(pendingInternal.isEmpty() && pendingOperations.isEmpty())
+        nextInstance = notification.getInstance() + 1;
+        if (pendingInternal.isEmpty() && pendingOperations.isEmpty())
             triggerNotification(new ExecutedNotification(notification.getInstance()));
-
-        nextInstance = notification.getInstance()+1;
-        proposeNext();
+        else
+            proposeNext();
     }
 
-    private void uponLeaderElectedNotification(LeaderElectedNotification notification, short sourceProto){
+    private void uponLeaderElectedNotification(LeaderElectedNotification notification, short sourceProto) {
         logger.debug("Received notification: " + notification);
 
         //TODO BEFORE TESTING MULTIPAXOS: send instance along with the leader
@@ -253,15 +253,15 @@ public class StateMachine extends GenericProtocol {
     }
 
     /*--------------------------------- Messages -------------------------------------- */
-    private void uponJoin(JoinMessage msg, Host from, short sourceProto, int channelId){
+    private void uponJoin(JoinMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received message: {}", msg);
-        if(membership.contains(from))
+        if (membership.contains(from))
             return;
 
         newProposalInternal(Operation.serialize(new AddReplica(from)));
     }
 
-    private void uponJoined(JoinedMessage msg, Host from, short sourceProto, int channelId){
+    private void uponJoined(JoinedMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received message: {}", msg);
         membership.add(self);
 
@@ -269,15 +269,14 @@ public class StateMachine extends GenericProtocol {
         sendRequest(new InstallStateRequest(msg.getState()), HashApp.PROTO_ID);
         triggerNotification(new JoinedNotification(membership, nextInstance));
 
-        if (msg.getLeader() != null) {
+        if (msg.getLeader() != null)
             leader = msg.getLeader();
-        }
 
         state = State.ACTIVE;
         proposeNext();
     }
 
-    private void uponRedirect(RedirectMessage msg, Host from, short sourceProto, int channelId){
+    private void uponRedirect(RedirectMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received message: {}", msg);
         newProposal(msg.getOperation());
     }
@@ -295,9 +294,7 @@ public class StateMachine extends GenericProtocol {
         if (state == State.JOINING) {
             logger.debug("Sending join request to {}", event.getNode());
             sendMessage(new JoinMessage(), event.getNode());
-        }
-
-        else if (state == State.ACTIVE)
+        } else if (state == State.ACTIVE)
             joiningConn.computeIfPresent(event.getNode(), (node, instance) -> {
                 logger.debug("Node {} joining on instance {} -> waiting for state...", node, instance);
                 waitingState.put(instance, node);
@@ -377,9 +374,9 @@ public class StateMachine extends GenericProtocol {
             propose(pendingOperations.peek());
     }
 
-    private void propose(byte[] op){
+    private void propose(byte[] op) {
         if (self.equals(leader)) {
-            logger.trace("Sending to myself: inst-{} op -> {}", nextInstance,  leader);
+            logger.trace("Sending to myself: inst-{} op -> {}", nextInstance, leader);
             sendRequest(new ProposeRequest(nextInstance++, op), agreement);
         } else {
             logger.trace("Sending to leader: op -> {} ", leader);

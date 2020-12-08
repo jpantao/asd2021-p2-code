@@ -111,6 +111,7 @@ public class Paxos extends GenericProtocol {
     private boolean tryToDecide(PaxosState state, int instance) {
         if (last_executed_instance < instance && state.getAcceptQuorum().size() > membership.size() / 2) {
             triggerNotification(new DecidedNotification(instance, state.getVa()));
+            last_executed_instance++;
             return true;
         }
         return false;
@@ -223,10 +224,9 @@ public class Paxos extends GenericProtocol {
 
 
     private void uponExecuted(ExecutedNotification notification, short sourceProto) {
-        last_executed_instance = notification.getInstance();
-        PaxosState state = instances.get(last_executed_instance + 1);
+        PaxosState state = instances.get(notification.getInstance() + 1);
         if (state != null)
-            tryToDecide(state, last_executed_instance + 1);
+            tryToDecide(state, notification.getInstance() + 1);
     }
 
     private void uponRemoveReplica(RemoveReplicaRequest request, short sourceProto) {
