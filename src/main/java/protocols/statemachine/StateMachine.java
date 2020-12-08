@@ -14,6 +14,7 @@ import protocols.statemachine.messages.JoinMessage;
 import protocols.statemachine.messages.JoinedMessage;
 import protocols.statemachine.messages.RedirectMessage;
 import protocols.statemachine.notifications.ExecuteNotification;
+import protocols.statemachine.notifications.ExecutedNotification;
 import protocols.statemachine.timers.NopTimer;
 import protocols.statemachine.timers.RetryConnTimer;
 import protocols.statemachine.utils.*;
@@ -238,6 +239,9 @@ public class StateMachine extends GenericProtocol {
                     ((AppOperation) op).getOpId(), ((AppOperation) op).getOp()));
         }
 
+        triggerNotification(new ExecutedNotification(notification.getInstance()));
+        nextInstance = notification.getInstance()+1;
+
         proposeNext();
     }
 
@@ -259,12 +263,17 @@ public class StateMachine extends GenericProtocol {
 
     private void uponJoined(JoinedMessage msg, Host from, short sourceProto, int channelId){
         logger.debug("Received message: {}", msg);
-        sendRequest(new InstallStateRequest(msg.getState()), HashApp.PROTO_ID);
         membership.add(self);
-        state = State.ACTIVE;
-        if (msg.getLeader() != null)
-            leader = msg.getLeader();
+
         nextInstance = msg.getInstance();
+        sendRequest(new InstallStateRequest(msg.getState()), HashApp.PROTO_ID);
+        triggerNotification(new JoinedNotification(membership, nextInstance));
+
+        if (msg.getLeader() != null) {
+            leader = msg.getLeader();
+        }
+
+        state = State.ACTIVE;
         proposeNext();
     }
 
@@ -333,6 +342,7 @@ public class StateMachine extends GenericProtocol {
         logger.trace("Instance: {} ->  Adding replica: {}", instance, node);
         joiningConn.put(node, instance);
         openConnection(node);
+        membership.add(node);
         sendRequest(new AddReplicaRequest(instance, node), agreement); //request before establishing the connection?
     }
 
