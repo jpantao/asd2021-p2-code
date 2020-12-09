@@ -16,6 +16,7 @@ public class PaxosState {
     private Set<Host> acceptQuorum;
     private Set<Host> prepareQuorum;
     private long quorumTimerID;
+    private boolean decided;
 
     private long leaderTimerID; //only used in multi-paxos
 
@@ -29,6 +30,7 @@ public class PaxosState {
         this.highestVa = va;
         this.quorumTimerID = -1;
         this.leaderTimerID = -1;
+        this.decided = false;
     }
 
     public PaxosState(int np, byte[] va) {
@@ -41,6 +43,7 @@ public class PaxosState {
         this.highestVa = va;
         this.quorumTimerID = -1;
         this.leaderTimerID = -1;
+        this.decided = false;
     }
 
     public PaxosState(int np) {
@@ -53,6 +56,7 @@ public class PaxosState {
         this.highestVa = null;
         this.quorumTimerID = -1;
         this.leaderTimerID = -1;
+        this.decided = false;
     }
 
     public int getNp() {
@@ -135,4 +139,11 @@ public class PaxosState {
         this.leaderTimerID = leaderTimerID;
     }
 
+    public void decided() {
+        this.decided = true;
+    }
+
+    public boolean isDecided() {
+        return decided;
+    }
 }

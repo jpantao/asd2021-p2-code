@@ -33,10 +33,7 @@ public class Paxos extends GenericProtocol {
     private final Set<Host> membership;
     private final int n;
     private final int quorumTimeout;
-    private int last_executed_instance;
-
-    private int last_decided_instance;
-
+    private int lastExecutedInstance;
 
     public Paxos(Properties props) throws IOException, HandlerRegistrationException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
@@ -44,8 +41,7 @@ public class Paxos extends GenericProtocol {
         this.quorumTimeout = Integer.parseInt(props.getProperty("quorum_timeout"));
         this.membership = new HashSet<>();
         this.instances = new HashMap<>();
-        this.last_executed_instance = -1;
-        this.last_decided_instance = -1;
+        this.lastExecutedInstance = -1;
 
         /*---------------------- Register Timer Handlers --------------------------- */
         registerTimerHandler(QuorumTimer.TIMER_ID, this::uponQuorumTimeout);
@@ -93,22 +89,32 @@ public class Paxos extends GenericProtocol {
     }
 
     private void uponPropose(ProposeRequest request, short sourceProto) {
+        logger.debug("Proposing for instance {}", request.getInstance());
+
         int instance = request.getInstance();
-        if (last_decided_instance < instance) { //TODO: aqui e a last decided instance e não a last executed instance
-            String op = request.getOperation() == null ? "null" : String.valueOf(request.getOperation()[0]);
-            logger.debug("[{}] Propose {} : op-{}", instance, self, op);
-            PaxosState state = new PaxosState(n, request.getOperation());
+        PaxosState state = instances.get(instance);
+
+        if(state != null && canDecide(state, instance)) {
+            triggerNotification(new DecidedNotification(instance, state.getVa()));
+            state.decided();
+        }
+        else {
+            state = new PaxosState(n, request.getOperation());
             instances.put(instance, state);
-            propose(instance, n, state);
+            propose(instance, n, state); //send prepares
         }
 
     }
 
     /*--------------------------------- Requests -------------------<---------------- */
 
+    private boolean canDecide(PaxosState state, int instance){
+        return (lastExecutedInstance == instance - 1)
+                && state.getAcceptQuorum().size() > membership.size() / 2 && !state.isDecided();
+    }
+
     private boolean tryToDecide(PaxosState state, int instance) {
-        if ((last_executed_instance == instance - 1) && state.getAcceptQuorum().size() > membership.size() / 2  && instance > last_decided_instance) {
-            last_decided_instance = instance;
+        if ((lastExecutedInstance == instance - 1) && state.getAcceptQuorum().size() > membership.size() / 2) {
             triggerNotification(new DecidedNotification(instance, state.getVa()));
             return true;
         }
@@ -224,8 +230,8 @@ public class Paxos extends GenericProtocol {
 
 
     private void uponExecuted(ExecutedNotification notification, short sourceProto) {
-        if (last_executed_instance < notification.getInstance()) {
-            last_executed_instance = notification.getInstance();
+        if (lastExecutedInstance < notification.getInstance()) {
+            lastExecutedInstance = notification.getInstance();
             PaxosState state = instances.get(notification.getInstance() + 1);
             if (state != null)
                 tryToDecide(state, notification.getInstance() + 1);
@@ -246,7 +252,7 @@ public class Paxos extends GenericProtocol {
     private void uponQuorumTimeout(QuorumTimer quorumTimer, long timerID) {
         int instance = quorumTimer.getInstance();
         PaxosState state = instances.get(instance);
-        if (instance > last_executed_instance) {
+        if (!state.isDecided()) {
             state.resetPrepareQuorum();
             state.resetAcceptQuorum();
             propose(instance, state.getNp() + membership.size() + n, state);
