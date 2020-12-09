@@ -93,7 +93,9 @@ public class Paxos extends GenericProtocol {
         int instance = request.getInstance();
         PaxosState state = instances.get(instance);
 
-        if (!(state != null && !state.isDecided() && state.getVa() != null)) {
+        if (state != null && !state.isDecided() && state.getVa() != null) {
+            propose(instance, n, state);
+        } else {
             state = new PaxosState(n, request.getOperation());
             instances.put(instance, state);
             propose(instance, n, state);
@@ -179,7 +181,9 @@ public class Paxos extends GenericProtocol {
         }
 
         logger.debug("[{}] Accept (Before) {} -> {}: m-{} p-{} a-{}", instance, from, self, membership.size() / 2, state.getPrepareQuorum().size(), state.getAcceptQuorum().size());
-        if (np >= state.getNp()) {
+        if(state.isDecided())
+            sendMessage(new AcceptOkMessage(instance, state.getNp(), state.getVa()), from);
+        else if (np >= state.getNp()) {
             state.setNa(np);
             state.setVa(v);
             logger.debug("[{}] Accept (after) {} -> {}: m-{} p-{} a-{}", instance, from, self, membership.size() / 2, state.getPrepareQuorum().size(), state.getAcceptQuorum().size());

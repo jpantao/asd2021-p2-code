@@ -348,3 +348,6 @@ buildNumber.properties
 
 
 pom.xml
+
+### User specific ###
+client/client.log
