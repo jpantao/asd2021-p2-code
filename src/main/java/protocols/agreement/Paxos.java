@@ -35,6 +35,8 @@ public class Paxos extends GenericProtocol {
     private final int quorumTimeout;
     private int last_executed_instance;
 
+    private int last_decided_instance;
+
 
     public Paxos(Properties props) throws IOException, HandlerRegistrationException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
@@ -43,7 +45,7 @@ public class Paxos extends GenericProtocol {
         this.membership = new HashSet<>();
         this.instances = new HashMap<>();
         this.last_executed_instance = -1;
-
+        this.last_decided_instance = -1;
 
         /*---------------------- Register Timer Handlers --------------------------- */
         registerTimerHandler(QuorumTimer.TIMER_ID, this::uponQuorumTimeout);
@@ -92,7 +94,7 @@ public class Paxos extends GenericProtocol {
 
     private void uponPropose(ProposeRequest request, short sourceProto) {
         int instance = request.getInstance();
-        if (last_executed_instance < instance) {
+        if (last_decided_instance < instance) { //TODO: aqui e a last decided instance e não a last executed instance
             String op = request.getOperation() == null ? "null" : String.valueOf(request.getOperation()[0]);
             logger.debug("[{}] Propose {} : op-{}", instance, self, op);
             PaxosState state = new PaxosState(n, request.getOperation());
@@ -106,7 +108,8 @@ public class Paxos extends GenericProtocol {
     /*--------------------------------- Requests -------------------<---------------- */
 
     private boolean tryToDecide(PaxosState state, int instance) {
-        if ((last_executed_instance == instance - 1) && state.getAcceptQuorum().size() > membership.size() / 2) {
+        if ((last_executed_instance == instance - 1) && state.getAcceptQuorum().size() > membership.size() / 2  && instance > last_decided_instance) {
+            last_decided_instance = instance;
             triggerNotification(new DecidedNotification(instance, state.getVa()));
             return true;
         }
@@ -207,6 +210,8 @@ public class Paxos extends GenericProtocol {
         }
         logger.debug("[{}] Accept OK (After) {} -> {}: m-{} p-{} a-{}", instance, from, self, membership.size() / 2, state.getPrepareQuorum().size(), state.getAcceptQuorum().size());
         state.updateAcceptQuorum(from);
+
+
         tryToDecide(state, instance);
     }
 
