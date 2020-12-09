@@ -90,36 +90,28 @@ public class Paxos extends GenericProtocol {
 
     private void uponPropose(ProposeRequest request, short sourceProto) {
         logger.debug("Proposing for instance {}", request.getInstance());
-
         int instance = request.getInstance();
         PaxosState state = instances.get(instance);
-
-        if(state != null && canDecide(state, instance)) {
-            triggerNotification(new DecidedNotification(instance, state.getVa()));
-            state.decided();
-        }
-        else {
+        if (state == null) {
             state = new PaxosState(n, request.getOperation());
             instances.put(instance, state);
-            propose(instance, n, state); //send prepares
+            propose(instance, n, state);
         }
-
     }
 
     /*--------------------------------- Requests -------------------<---------------- */
 
-    private boolean canDecide(PaxosState state, int instance){
+    private boolean canDecide(PaxosState state, int instance) {
         return (lastExecutedInstance == instance - 1)
                 && state.getAcceptQuorum().size() > membership.size() / 2 && !state.isDecided();
     }
 
-    private boolean tryToDecide(PaxosState state, int instance) {
-        if ((lastExecutedInstance == instance - 1) && state.getAcceptQuorum().size() > membership.size() / 2) {
-            triggerNotification(new DecidedNotification(instance, state.getVa()));
-            return true;
-        }
-        return false;
+
+    private void decide(PaxosState state, int instance) {
+        triggerNotification(new DecidedNotification(instance, state.getVa()));
+        state.decided();
     }
+
 
     private void propose(int instance, int np, PaxosState state) {
         state.setNp(np);
@@ -217,7 +209,8 @@ public class Paxos extends GenericProtocol {
         state.updateAcceptQuorum(from);
 
 
-        tryToDecide(state, instance);
+        if (canDecide(state, instance))
+            decide(state, instance);
     }
 
     private void uponReject(RejectMessage msg, Host from, short sourceProto, int channelId) {
@@ -230,12 +223,10 @@ public class Paxos extends GenericProtocol {
 
 
     private void uponExecuted(ExecutedNotification notification, short sourceProto) {
-        if (lastExecutedInstance < notification.getInstance()) {
-            lastExecutedInstance = notification.getInstance();
-            PaxosState state = instances.get(notification.getInstance() + 1);
-            if (state != null)
-                tryToDecide(state, notification.getInstance() + 1);
-        }
+        lastExecutedInstance = notification.getInstance();
+        PaxosState state = instances.get(lastExecutedInstance + 1);
+        if (state != null && canDecide(state, lastExecutedInstance + 1))
+            decide(state, lastExecutedInstance + 1);
     }
 
     private void uponRemoveReplica(RemoveReplicaRequest request, short sourceProto) {
