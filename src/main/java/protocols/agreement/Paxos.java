@@ -96,7 +96,9 @@ public class Paxos extends GenericProtocol {
         if (state != null && !state.isDecided() && state.getVa() != null) {
             propose(instance, n, state);
         } else {
-            state = new PaxosState(n, request.getOperation());
+            if(state == null)
+                state = new PaxosState(n, request.getOperation());
+            state.setVa(request.getOperation());
             instances.put(instance, state);
             propose(instance, n, state);
         }
