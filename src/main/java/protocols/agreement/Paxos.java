@@ -98,7 +98,6 @@ public class Paxos extends GenericProtocol {
             String op = request.getOperation() == null ? "null" : String.valueOf(request.getOperation()[0]);
             logger.debug("[{}] Propose {} : op-{}", instance, self, op);
             PaxosState state = new PaxosState(n, request.getOperation());
-            //propose(instance, state.getNp(), state);
             instances.put(instance, state);
             propose(instance, n, state);
         }
