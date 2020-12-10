@@ -6,6 +6,7 @@ import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.network.ISerializer;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class PrepareOkMessage extends ProtoMessage {
     public final static short MSG_ID = 112;
@@ -16,7 +17,7 @@ public class PrepareOkMessage extends ProtoMessage {
     private final byte[] va;
 
 
-    public PrepareOkMessage(int ins,int n, byte[] v) {
+    public PrepareOkMessage(int ins, int n, byte[] v) {
         super(MSG_ID);
         this.ins = ins;
         this.na = n;
@@ -41,7 +42,7 @@ public class PrepareOkMessage extends ProtoMessage {
         return "PromiseMessage{" +
                 "ins=" + ins +
                 ", n=" + na +
-                ", v=" + (va != null ? Hex.encodeHexString(va) : null) +
+                ", v=" + (va != null ? Arrays.hashCode(va) : null) +
                 '}';
     }
 

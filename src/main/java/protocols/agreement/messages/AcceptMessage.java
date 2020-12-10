@@ -2,10 +2,12 @@ package protocols.agreement.messages;
 
 import io.netty.buffer.ByteBuf;
 import org.apache.commons.codec.binary.Hex;
+import protocols.statemachine.utils.Operation;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.network.ISerializer;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class AcceptMessage extends ProtoMessage {
     public final static short MSG_ID = 113;
@@ -38,7 +40,7 @@ public class AcceptMessage extends ProtoMessage {
         return "AcceptMessage{" +
                 "ins=" + ins +
                 ", n=" + n +
-                ", v=" + Hex.encodeHexString(v) +
+                ", v=" + Arrays.hashCode(v) +
                 '}';
     }
 

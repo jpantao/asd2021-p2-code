@@ -233,15 +233,13 @@ public class StateMachine extends GenericProtocol {
             logger.debug("Instance: {} -> Decided RemReplica {}", notification.getInstance(), ((RemReplica) op).getNode());
             removeReplica(notification.getInstance(), ((RemReplica) op).getNode());
         } else if (op instanceof AppOperation) {
-            logger.debug("Instance: {} -> Decided AppOperation", notification.getInstance());
+            logger.debug("Instance: {} -> Decided AppOperation {}", notification.getInstance(), Arrays.hashCode(notification.getOperation()));
             triggerNotification(new ExecuteNotification(
                     ((AppOperation) op).getOpId(), ((AppOperation) op).getOp()));
         }
 
         nextInstance = notification.getInstance() + 1;
-        //if (pendingInternal.isEmpty() && pendingOperations.isEmpty())
         triggerNotification(new ExecutedNotification(notification.getInstance()));
-        //else
 
         proposeNext();
     }

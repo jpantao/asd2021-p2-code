@@ -17,7 +17,7 @@
         <Logger level="info" name="pt.unl.fct.di.novasys.babel"/>
 
         <!-- Project package debug level -->
-        <Logger level="debug" name="protocols.app.HashApp"/>
+        <Logger level="info" name="protocols.app.HashApp"/>
         <Logger level="debug" name="protocols.statemachine.StateMachine"/>
         <Logger level="info" name="protocols.agreement.MultiPaxos"/>
         <Logger level="debug" name="protocols.agreement.Paxos"/>

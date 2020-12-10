@@ -3,6 +3,7 @@ package protocols.agreement.utils;
 
 import pt.unl.fct.di.novasys.network.data.Host;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -18,6 +19,8 @@ public class PaxosState {
     private long quorumTimerID;
     private boolean decided;
 
+    private byte[] proposedByMeValueFromAbove;
+
     private long leaderTimerID; //only used in multi-paxos
 
     public PaxosState(int np, int na, byte[] va) {
@@ -31,6 +34,7 @@ public class PaxosState {
         this.quorumTimerID = -1;
         this.leaderTimerID = -1;
         this.decided = false;
+        proposedByMeValueFromAbove = null;
     }
 
     public PaxosState(int np, byte[] va) {
@@ -44,6 +48,7 @@ public class PaxosState {
         this.quorumTimerID = -1;
         this.leaderTimerID = -1;
         this.decided = false;
+        proposedByMeValueFromAbove = null;
     }
 
     public PaxosState(int np) {
@@ -57,6 +62,15 @@ public class PaxosState {
         this.quorumTimerID = -1;
         this.leaderTimerID = -1;
         this.decided = false;
+        proposedByMeValueFromAbove = null;
+    }
+
+    public void setProposedByMeValueFromAbove(byte[] proposedByMeValueFromAbove) {
+        this.proposedByMeValueFromAbove = proposedByMeValueFromAbove;
+    }
+
+    public void changeToMyVal(){
+        this.va = proposedByMeValueFromAbove;
     }
 
     public int getNp() {
@@ -145,5 +159,21 @@ public class PaxosState {
 
     public boolean isDecided() {
         return decided;
+    }
+
+    @Override
+    public String toString() {
+        return "PaxosState{" +
+                "np=" + np +
+                ", na=" + na +
+                ", va=" + Arrays.toString(va) +
+                ", highestNa=" + highestNa +
+                ", highestVa=" + Arrays.toString(highestVa) +
+                ", acceptQuorum=" + acceptQuorum +
+                ", prepareQuorum=" + prepareQuorum +
+                ", quorumTimerID=" + quorumTimerID +
+                ", decided=" + decided +
+                ", leaderTimerID=" + leaderTimerID +
+                '}';
     }
 }
