@@ -132,7 +132,7 @@ public class Paxos extends GenericProtocol {
     /*--------------------------------- Messages ----------------------------------- */
 
     private void uponPrepare(PrepareMessage msg, Host from, short sourceProto, int channelId) {
-        logger.debug("Received: {}", msg);
+        logger.debug("Received: {} from {}", msg, from);
         int instance = msg.getInstance();
         int np = msg.getN();
         PaxosState state = instances.get(instance);
@@ -140,24 +140,28 @@ public class Paxos extends GenericProtocol {
         if (state == null) {
             state = new PaxosState(np);
             instances.put(instance, state);
-            logger.debug("Sending: {}", new PrepareOkMessage(instance, state.getNp(), state.getVa()));
-            sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()), from);
+            logger.debug("Sending: {}", new PrepareOkMessage(instance, state.getNp(), state.getNa(), state.getVa()));
+            sendMessage(new PrepareOkMessage(instance, state.getNp(), state.getNa(), state.getVa()), from);
         } else if (np > state.getNp()) {
             state.setNp(msg.getN());
-            logger.debug("Sending: {}", new PrepareOkMessage(instance, state.getNp(), state.getVa()));
-            sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()), from);
+            logger.debug("Sending: {}", new PrepareOkMessage(instance, state.getNp(), state.getNp(), state.getVa()));
+            sendMessage(new PrepareOkMessage(instance, state.getNp(), state.getNa(), state.getVa()), from);
         }
     }
 
     private void uponPrepareOk(PrepareOkMessage msg, Host from, short sourceProto, int channelId) {
-        logger.debug("Received: {}", msg);
+        logger.debug("Received: {} from {}", msg, from);
         int instance = msg.getInstance();
         PaxosState state = instances.get(instance);
-        state.updatePrepareQuorum(from);
         int naReceived = msg.getNa();
         byte[] vaReceived = msg.getVa();
         int highestNa = state.getHighestNa();
 
+
+        if(msg.getN() < state.getNp())
+            return;
+
+        state.updatePrepareQuorum(from);
 
         if (naReceived > highestNa) {
 //                logger.debug("[{}] PrepareOk (IF) {} -> {}: na-{} hna-{}", instance, from, self, naReceived, highestNa);
@@ -191,7 +195,7 @@ public class Paxos extends GenericProtocol {
     }
 
     private void uponAccept(AcceptMessage msg, Host from, short sourceProto, int channelId) {
-        logger.debug("Received: {}", msg);
+        logger.debug("Received: {} from {}", msg, from);
         int instance = msg.getInstance();
         int np = msg.getN();
         byte[] v = msg.getV();
@@ -215,7 +219,7 @@ public class Paxos extends GenericProtocol {
     }
 
     private void uponAcceptOk(AcceptOkMessage msg, Host from, short sourceProto, int channelId) {
-        logger.debug("Received: {}", msg);
+        logger.debug("Received: {} from {}", msg, from);
         int instance = msg.getInstance();
         int n = msg.getN();
         byte[] v = msg.getV();
