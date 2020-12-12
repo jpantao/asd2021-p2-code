@@ -9,6 +9,8 @@ import java.util.Set;
 
 public class PaxosState {
 
+
+
     private int np;
     private int na;
     private byte[] va;
@@ -20,6 +22,7 @@ public class PaxosState {
     private boolean decided;
 
     private byte[] proposedByMeValueFromAbove;
+    private int prepared;
 
     private long leaderTimerID; //only used in multi-paxos
 
@@ -71,6 +74,14 @@ public class PaxosState {
 
     public void changeToMyVal(){
         this.va = proposedByMeValueFromAbove;
+    }
+
+    public int getPrepared() {
+        return prepared;
+    }
+
+    public void setPrepared(int prepared) {
+        this.prepared = prepared;
     }
 
     public int getNp() {

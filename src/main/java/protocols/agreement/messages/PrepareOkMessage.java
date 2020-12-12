@@ -49,7 +49,7 @@ public class PrepareOkMessage extends ProtoMessage {
                 "ins=" + ins +
                 ", n=" + n +
                 ", na=" + na +
-                ", va=" + Arrays.toString(va) +
+                ", va=" + Arrays.hashCode(va) +
                 '}';
     }
 

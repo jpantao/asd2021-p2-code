@@ -91,7 +91,7 @@ public class Paxos extends GenericProtocol {
     private void uponPropose(ProposeRequest request, short sourceProto) {
         logger.debug("Propose: {}  - {}", request.getInstance(), Arrays.hashCode(request.getOperation()));
         int instance = request.getInstance();
-        PaxosState state = instances.computeIfAbsent(instance, k -> new PaxosState(n, request.getOperation()));
+        PaxosState state = instances.computeIfAbsent(instance, k -> new PaxosState(n));
         state.setProposedByMeValueFromAbove(request.getOperation());
 
         if (!state.isDecided()) {
@@ -105,7 +105,7 @@ public class Paxos extends GenericProtocol {
 
     }
 
-    /*--------------------------------- Requests -------------------<---------------- */ //requests?
+    /*--------------------------------- Requests ----------------------------------- */ //requests?
 
     private boolean canDecide(PaxosState state, int instance) {
         return lastExecutedInstance == (instance - 1)
@@ -139,13 +139,15 @@ public class Paxos extends GenericProtocol {
 
         if (state == null) {
             state = new PaxosState(np);
+            state.setPrepared(np);
             instances.put(instance, state);
             logger.debug("Sending: {}", new PrepareOkMessage(instance, state.getNp(), state.getNa(), state.getVa()));
-            sendMessage(new PrepareOkMessage(instance, state.getNp(), state.getNa(), state.getVa()), from);
+            sendMessage(new PrepareOkMessage(instance, np, state.getNa(), state.getVa()), from);
         } else if (np > state.getNp()) {
-            state.setNp(msg.getN());
-            logger.debug("Sending: {}", new PrepareOkMessage(instance, state.getNp(), state.getNp(), state.getVa()));
-            sendMessage(new PrepareOkMessage(instance, state.getNp(), state.getNa(), state.getVa()), from);
+            state.setNp(np);
+            state.setPrepared(np);
+            logger.debug("Sending: {}", new PrepareOkMessage(instance, state.getNp(), state.getNa(), state.getVa()));
+            sendMessage(new PrepareOkMessage(instance, np, state.getNa(), state.getVa()), from);
         }
     }
 
@@ -174,21 +176,26 @@ public class Paxos extends GenericProtocol {
 //        logger.debug("[{}] PrepareOk (AFTER IF) {} -> {}: na-{} hna-{} va-{} hva-{}", instance, from, self, naReceived, state.getHighestNa(), var, hva);
 //        logger.debug("[{}] PrepareOk (QUORUM) {} -> {}: m-{} p-{} a-{}", instance, from, self, membership.size() / 2, state.getPrepareQuorum().size(), state.getAcceptQuorum().size());
 
-        if (state.getPrepareQuorum().size() > membership.size() / 2) {
+        if (state.getPrepareQuorum().size() > membership.size() / 2 && state.getPrepared() != -1) {
+
+            state.setPrepared(-1);
 
             cancelTimer(state.getQuorumTimerID());
-            int np = state.getNp();
             byte[] v = state.getHighestVa();
             if (v == null) {
                 state.changeToMyVal();
                 v = state.getVa();
             }
 
-            logger.debug("Sending: {}", new AcceptMessage(instance, np, v));
-            for (Host p : membership)
-                sendMessage(new AcceptMessage(instance, np, v), p);
+            state.setVa(v);
 
-            //TODO: porque este timer?
+
+
+            logger.debug("Sending: {}", new AcceptMessage(instance, msg.getN(), v));
+            for (Host p : membership)
+                sendMessage(new AcceptMessage(instance, state.getNp(), v), p);
+
+            //TODO: podemos usar apenas um timer maior sem fazer reset
             long quorumTimer = setupTimer(new QuorumTimer(instance), quorumTimeout);
             state.setQuorumTimerID(quorumTimer);
         }
@@ -239,7 +246,6 @@ public class Paxos extends GenericProtocol {
         } else if (n < state.getNa())
             return;
         state.updateAcceptQuorum(from);
-
         if (canDecide(state, instance))
             decide(state, instance);
 
