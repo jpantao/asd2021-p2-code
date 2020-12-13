@@ -351,3 +351,5 @@ pom.xml
 
 ### User specific ###
 client/client.log
+eval/results/*/*
+eval/logs/*/*

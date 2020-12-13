@@ -5,26 +5,17 @@
             <PatternLayout pattern="%highlight{%level{length=1}[%d{HH:mm:ss,SSS}] [%t]%logger{0}:} %msg%n"/>
         </Console>
 
-        <File name="logfile" fileName="logs/${sys:logFilename}.log" append="false" immediateFlush="true">
-            <PatternLayout pattern="%highlight{%level{length=1}[%d{HH:mm:ss:SSS}] [%t]%logger{0}:} %msg%n"/>
-        </File>
     </Appenders>
 
     <Loggers>
+
         <Logger level="info" name="io.netty"/>
         <Logger level="info" name="pt.unl.fct.di.novasys.network"/>
         <Logger level="info" name="pt.unl.fct.di.novasys.channel"/>
         <Logger level="info" name="pt.unl.fct.di.novasys.babel"/>
 
-        <!-- Project package debug level -->
-        <Logger level="info" name="protocols.app.HashApp"/>
-        <Logger level="debug" name="protocols.statemachine.StateMachine"/>
-        <Logger level="info" name="protocols.agreement.MultiPaxos"/>
-        <Logger level="debug" name="protocols.agreement.Paxos"/>
-
         <Root level="debug">
             <AppenderRef ref="Console" level="info"/>
-            <AppenderRef ref="logfile" level="debug"/>
         </Root>
     </Loggers>
 

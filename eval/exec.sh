@@ -112,7 +112,7 @@ do
 			java \
 				-Dlog4j.configurationFile=config/log4j2.xml \
 				-DlogFilename=logs/${expname}/server_${nthreads}_${nservers}_${servernode} \
-				-cp asdProj2.jar Main -conf config.properties server_port=${server_port} \
+				-cp server/asdProj2.jar Main -conf config.properties server_port=${server_port} \
 				p2p_port=${p2p_port} interface=bond0 \
 				initial_membership=${servers_p2p}" 2>&1 | sed "s/^/[s-$servernode] /" &
 	sleep 1

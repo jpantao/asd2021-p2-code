@@ -88,6 +88,7 @@ public class Paxos extends GenericProtocol {
         }
     }
 
+    /*--------------------------------- Requests ----------------------------------- */
     private void uponPropose(ProposeRequest request, short sourceProto) {
         logger.debug("Propose: {}  - {}", request.getInstance(), Arrays.hashCode(request.getOperation()));
         int instance = request.getInstance();
@@ -97,25 +98,7 @@ public class Paxos extends GenericProtocol {
         if (!state.isDecided())
             sendPrepares(instance, n, state);
 
-
-//        if (state == null || state.isDecided() || state.getVa() == null) {
-//            state = new PaxosState(n, request.getOperation());
-//            instances.put(instance, state);
-//        }
-
-        if (state != null && !state.isDecided() && state.getVa() != null) {
-            propose(instance, n, state);
-        } else {
-            if(state == null)
-                state = new PaxosState(n, request.getOperation());
-            state.setVa(request.getOperation());
-            instances.put(instance, state);
-            propose(instance, n, state);
-        }
-
     }
-
-    /*--------------------------------- Requests ----------------------------------- */ //requests?
 
     private boolean canDecide(PaxosState state, int instance) {
         return lastExecutedInstance == (instance - 1)
@@ -123,12 +106,10 @@ public class Paxos extends GenericProtocol {
                 && !state.isDecided();
     }
 
-
     private void decide(PaxosState state, int instance) {
         triggerNotification(new DecidedNotification(instance, state.getVa()));
         state.decided();
     }
-
 
     private void sendPrepares(int instance, int np, PaxosState state) {
         PrepareMessage msg = new PrepareMessage(instance, np);
@@ -176,15 +157,9 @@ public class Paxos extends GenericProtocol {
         state.updatePrepareQuorum(from);
 
         if (naReceived > highestNa) {
-//                logger.debug("[{}] PrepareOk (IF) {} -> {}: na-{} hna-{}", instance, from, self, naReceived, highestNa);
             state.setHighestNa(naReceived);
             state.setHighestVa(vaReceived);
         }
-
-//        String hva = state.getHighestVa() == null ? "null" : String.valueOf(state.getHighestVa()[0]);
-//        String var = vaReceived == null ? "null" : String.valueOf(vaReceived[0]);
-//        logger.debug("[{}] PrepareOk (AFTER IF) {} -> {}: na-{} hna-{} va-{} hva-{}", instance, from, self, naReceived, state.getHighestNa(), var, hva);
-//        logger.debug("[{}] PrepareOk (QUORUM) {} -> {}: m-{} p-{} a-{}", instance, from, self, membership.size() / 2, state.getPrepareQuorum().size(), state.getAcceptQuorum().size());
 
         if (state.getPrepareQuorum().size() > membership.size() / 2 && state.getPrepared() != -1) {
 
@@ -222,13 +197,9 @@ public class Paxos extends GenericProtocol {
             instances.put(instance, state);
         }
 
-//        logger.debug("[{}] Accept (Before) {} -> {}: m-{} p-{} a-{}", instance, from, self, membership.size() / 2, state.getPrepareQuorum().size(), state.getAcceptQuorum().size());
-//        if (state.isDecided())
-//            sendMessage(new AcceptOkMessage(instance, state.getNp(), state.getVa()), from);
         if (np >= state.getNp()) {
             state.setNa(np);
             state.setVa(v);
-//            logger.debug("[{}] Accept (after) {} -> {}: m-{} p-{} a-{}", instance, from, self, membership.size() / 2, state.getPrepareQuorum().size(), state.getAcceptQuorum().size());
             logger.debug("Sending: {}", new AcceptOkMessage(instance, np, v));
             for (Host p : membership)
                 sendMessage(new AcceptOkMessage(instance, np, v), p);
@@ -246,9 +217,6 @@ public class Paxos extends GenericProtocol {
             instances.put(instance, state);
         }
 
-//        logger.debug("[{}] Accept OK (Before) {} -> {}: m-{} p-{} a-{}", instance, from, self, membership.size() / 2, state.getPrepareQuorum().size(), state.getAcceptQuorum().size());
-
-
         if (n > state.getNa()) {
             state.setNa(n);
             state.setVa(v);
@@ -259,7 +227,6 @@ public class Paxos extends GenericProtocol {
         if (canDecide(state, instance))
             decide(state, instance);
 
-//        logger.debug("[{}] Accept OK (After) {} -> {}: m-{} p-{} a-{}", instance, from, self, membership.size() / 2, state.getPrepareQuorum().size(), state.getAcceptQuorum().size());
     }
 
     private void uponReject(RejectMessage msg, Host from, short sourceProto, int channelId) {
