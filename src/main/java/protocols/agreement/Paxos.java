@@ -94,9 +94,9 @@ public class Paxos extends GenericProtocol {
         PaxosState state = instances.computeIfAbsent(instance, k -> new PaxosState(n));
         state.setProposedByMeValueFromAbove(request.getOperation());
 
-        if (!state.isDecided()) {
+        if (!state.isDecided())
             sendPrepares(instance, n, state);
-        }
+
 
 //        if (state == null || state.isDecided() || state.getVa() == null) {
 //            state = new PaxosState(n, request.getOperation());
