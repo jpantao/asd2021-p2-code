@@ -7,10 +7,8 @@ import protocols.agreement.notifications.DecidedNotification;
 import protocols.statemachine.notifications.JoinedNotification;
 import protocols.agreement.notifications.LeaderElectedNotification;
 import protocols.agreement.requests.AddReplicaRequest;
-import protocols.agreement.requests.ProposeRequest;
 import protocols.agreement.requests.RemoveReplicaRequest;
 import protocols.agreement.timers.LeaderTimer;
-import protocols.agreement.timers.QuorumTimer;
 import protocols.agreement.utils.PaxosState;
 import protocols.statemachine.notifications.ChannelReadyNotification;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
@@ -136,7 +134,7 @@ public class MultiPaxos extends GenericProtocol {
             leader = from;
             state = new PaxosState(np);
             instances.put(instance, state);
-            sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()), from);
+//            sendMessage(new PrepareOkMessage(instance, , state.getNa(), state.getVa()), from);
             leaderTimer = setupTimer(new LeaderTimer(instance), quorumTimeout);
             state.setLeaderTimerID(leaderTimer);
             triggerNotification(new LeaderElectedNotification(leader));
@@ -151,7 +149,7 @@ public class MultiPaxos extends GenericProtocol {
             }
             leader = from;
             state.setNp(np);
-            sendMessage(new PrepareOkMessage(instance, state.getNa(), state.getVa()), from);
+//            sendMessage(new PrepareOkMessage(instance, n1, state.getNa(), state.getVa()), from);
             leaderTimer = setupTimer(new LeaderTimer(instance), quorumTimeout);
             state.setLeaderTimerID(leaderTimer);
             triggerNotification(new LeaderElectedNotification(leader));

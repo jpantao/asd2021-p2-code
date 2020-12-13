@@ -6,6 +6,7 @@ import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.network.ISerializer;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class AcceptOkMessage extends ProtoMessage {
     public final static short MSG_ID = 114;
@@ -39,7 +40,7 @@ public class AcceptOkMessage extends ProtoMessage {
         return "AcceptedMessage{" +
                 "ins=" + ins +
                 ", n=" + n +
-                ", v=" + Hex.encodeHexString(v) +
+                ", v=" + Arrays.hashCode(v) +
                 '}';
     }
 

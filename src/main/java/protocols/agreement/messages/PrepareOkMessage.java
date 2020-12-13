@@ -1,25 +1,28 @@
 package protocols.agreement.messages;
 
 import io.netty.buffer.ByteBuf;
-import org.apache.commons.codec.binary.Hex;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.network.ISerializer;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class PrepareOkMessage extends ProtoMessage {
     public final static short MSG_ID = 112;
 
     private final int ins;
 
+    private final int n;
+
     private final int na;
     private final byte[] va;
 
 
-    public PrepareOkMessage(int ins,int n, byte[] v) {
+    public PrepareOkMessage(int ins, int n, int na, byte[] v) {
         super(MSG_ID);
         this.ins = ins;
-        this.na = n;
+        this.n = n;
+        this.na = na;
         this.va = v;
     }
 
@@ -27,6 +30,9 @@ public class PrepareOkMessage extends ProtoMessage {
         return ins;
     }
 
+    public int getN() {
+        return n;
+    }
 
     public int getNa() {
         return na;
@@ -36,12 +42,14 @@ public class PrepareOkMessage extends ProtoMessage {
         return va;
     }
 
+
     @Override
     public String toString() {
-        return "PromiseMessage{" +
+        return "PrepareOkMessage{" +
                 "ins=" + ins +
-                ", n=" + na +
-                ", v=" + (va != null ? Hex.encodeHexString(va) : null) +
+                ", n=" + n +
+                ", na=" + na +
+                ", va=" + Arrays.hashCode(va) +
                 '}';
     }
 
@@ -57,6 +65,7 @@ public class PrepareOkMessage extends ProtoMessage {
             }
 
             byteBuf.writeInt(msg.ins);
+            byteBuf.writeInt(msg.n);
             byteBuf.writeInt(msg.na);
         }
 
@@ -72,7 +81,8 @@ public class PrepareOkMessage extends ProtoMessage {
 
             int ins = byteBuf.readInt();
             int n = byteBuf.readInt();
-            return new PrepareOkMessage(ins , n, v);
+            int na = byteBuf.readInt();
+            return new PrepareOkMessage(ins , n, na, v);
         }
     };
 }
