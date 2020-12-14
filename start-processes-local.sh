@@ -11,13 +11,13 @@ i=0
 base_p2p_port=5000
 base_server_port=6000
 
-membership="localhost:${p2p_port}"
+membership="localhost:${base_p2p_port}"
 
 read -p "------------- Press enter start. After starting, press enter to kill all servers --------------------"
 
 i=1
 while [ $i -lt $processes ]; do
-    membership="${membership},localhost:$(($p2p_port + $i))"
+    membership="${membership},localhost:$(($base_p2p_port + $i))"
     i=$(($i + 1))
 done
 

@@ -335,7 +335,7 @@ public class StateMachine extends GenericProtocol {
     private void addReplica(int instance, Host node) {
         if (membership.contains(node))
             return;
-        logger.trace("Instance: {} ->  Adding replica: {}", instance, node);
+        logger.info("Instance: {} ->  Adding replica: {}", instance, node);
         joiningConn.put(node, instance);
         openConnection(node);
         membership.add(node);
@@ -345,7 +345,7 @@ public class StateMachine extends GenericProtocol {
     private void removeReplica(int instance, Host node) {
         if (!membership.contains(node))
             return;
-        logger.trace("Instance: {} ->  Removing replica: {}", instance, node);
+        logger.info("Instance: {} ->  Removing replica: {}", instance, node);
         sendRequest(new RemoveReplicaRequest(instance, node), agreement);
         membership.remove(node);
         closeConnection(node);
