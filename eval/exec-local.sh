@@ -65,7 +65,6 @@ if [[ -z "${expname}" ]]; then
 	exit
 fi
 
-mkdir -p logs/${expname}
 mkdir -p results/${expname}
 
 # ----------------------------------- LOG PARAMS ------------------------------
@@ -82,7 +81,6 @@ sleep 5
 servers_p2p="localhost:${p2p_port}"
 servers_server="localhost:${server_port}"
 
-read -p "------------- Press enter start. After starting, press enter to kill all servers --------------------"
 
 i=1
 while [ $i -lt $nservers ]; do
@@ -94,7 +92,7 @@ done
 i=0
 while [ $i -lt $nservers ]; do
   java -Dlog4j.configurationFile=server/log4j2.xml \
-    -DlogFilename=logs/${expname}/server_${nthreads}_${nservers}_${i} \
+    -DlogFilename=${expname}/server_${nthreads}_${nservers}_$(($p2p_port + $i)) \
 	  -cp server/asdProj2.jar Main -conf server/config.properties server_port=$(($server_port + $i)) \
 	  n=$(($i + 1)) \
 	  address=localhost p2p_port=$(($p2p_port + $i)) server_port=$(($server_port + $i)) \
@@ -109,15 +107,15 @@ sleep 5
 i=0
 while [ $i -lt $nclients ]; do
   java -Dlog4j.configurationFile=client/log4j2.xml \
-    -DlogFilename=logs/${expname}/client_${nthreads}_${nservers}_${i} \
+    -DlogFilename=${expname}/client_${nthreads}_${nservers}_${i} \
     -cp client/asd-client.jar site.ycsb.Client -t -s -P client/config.properties \
     -threads $nthreads -p fieldlength=1000 \
     -p hosts=${servers_server} -p readproportion=50 -p updateproportion=50 \
-    > results/${expname}/nthreads${nthreads}_nservers${nservers}_${i}.log 2>&1 | sed "s/^/[c-$i] /" &
+    > results/${expname}/${nthreads}_${nservers}_${i}.log 2>&1 | sed "s/^/[c-$i] /" &
     i=$(($i + 1))
 done
 
-read -p "------------- Press enter to kill servers. --------------------"
-
+sleep 300
 kill $(ps aux | grep 'server/asdProj2.jar' | awk '{print $2}')
+kill $(ps aux | grep 'asd-client.jar' | awk '{print $2}')
 echo "All processes done!"
