@@ -111,11 +111,11 @@ while [ $i -lt $nclients ]; do
     -cp client/asd-client.jar site.ycsb.Client -t -s -P client/config.properties \
     -threads $nthreads -p fieldlength=1000 \
     -p hosts=${servers_server} -p readproportion=50 -p updateproportion=50 \
-    > results/${expname}/${nthreads}_${nservers}_${i}.log 2>&1 | sed "s/^/[c-$i] /" &
+    > results/${expname}/${nthreads}_${nservers}_${node}.log 2>&1 | sed "s/^/[c-$node] /" &
     i=$(($i + 1))
 done
 
 sleep 300
-kill $(ps aux | grep 'server/asdProj2.jar' | awk '{print $2}')
+kill $(ps aux | grep 'asdProj2.jar' | awk '{print $2}')
 kill $(ps aux | grep 'asd-client.jar' | awk '{print $2}')
 echo "All processes done!"

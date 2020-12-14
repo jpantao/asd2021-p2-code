@@ -19,11 +19,6 @@ import java.util.Properties;
 
 public class Main {
 
-    //Sets the log4j (logging library) configuration file
-    static {
-        System.setProperty("log4j.configurationFile", "log4j2.xml");
-    }
-
     //Creates the logger object
     private static final Logger logger = LogManager.getLogger(Main.class);
 
