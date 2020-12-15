@@ -111,7 +111,7 @@ while [ $i -lt $nclients ]; do
     -cp client/asd-client.jar site.ycsb.Client -t -s -P client/config.properties \
     -threads $nthreads -p fieldlength=1000 \
     -p hosts=${servers_server} -p readproportion=50 -p updateproportion=50 \
-    > results/${expname}/${nthreads}_${nservers}_${node}.log 2>&1 | sed "s/^/[c-$node] /" &
+    > results/${expname}/${nthreads}_${nservers}_${i}.log 2>&1 | sed "s/^/[c-$node] /" &
     i=$(($i + 1))
 done
 
