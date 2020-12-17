@@ -4,6 +4,7 @@ import io.netty.buffer.ByteBuf;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.UUID;
 
 public class AppOperation extends Operation {
@@ -33,6 +34,19 @@ public class AppOperation extends Operation {
                 '}';
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof AppOperation)) return false;
+        AppOperation that = (AppOperation) o;
+        return opId.equals(that.opId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(opId);
+    }
+
     public static Serializer<Operation> serializer = new Serializer<Operation>() {
         @Override
         public void serialize(Operation operation, ByteBuf buf) {
@@ -50,6 +64,4 @@ public class AppOperation extends Operation {
             return new AppOperation(opId, op);
         }
     };
-
-
 }

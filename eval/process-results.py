@@ -10,10 +10,10 @@ MPAXOS_DIR = "./results/multi-paxos"
 
 NSERVERS = 3
 CLIENTS = [0]
-NTHREADS = [3, 6, 9, 12, 15]
+NTHREADS = [3, 6, 9, 12, 15, 18]
 
 
-def extract_values(expdir):
+def extract_values(experience_dir):
     thrp = list()
     avgl = list()
 
@@ -21,7 +21,7 @@ def extract_values(expdir):
         client_throughput = list()
         client_avglatency = list()
         for client in CLIENTS:
-            with open(f'{expdir}/{nthread}_{NSERVERS}_{client}.log', newline='') as logfile:
+            with open(f'{experience_dir}/{nthread}_{NSERVERS}_{client}.log', newline='') as logfile:
                 reader = csv.reader(logfile, delimiter=',')
                 for row in reader:
                     if len(row) != 3 or "[CLEANUP]" in row[0]:
@@ -37,8 +37,8 @@ def extract_values(expdir):
     return thrp, avgl
 
 
-def generate_plot(throughput, avglatency, title):
-    plt.plot(throughput, avglatency,'-o')
+def generate_plot(throughput_values, avglatency_values, title):
+    plt.plot(throughput_values, avglatency_values, '-o')
     plt.title(title)
     plt.xlabel("Throughput (ops/sec)")
     plt.ylabel("Latency (ms)")
@@ -58,3 +58,7 @@ if __name__ == '__main__':
     throughput, avglatency = extract_values(PAXOS_DIR)
     generate_plot(throughput, avglatency, "Paxos")
     log_values(throughput, avglatency)
+    # throughput, avglatency = extract_values(MPAXOS_DIR)
+    # generate_plot(throughput, avglatency, "Multi Paxos")
+    # log_values(throughput, avglatency)
+

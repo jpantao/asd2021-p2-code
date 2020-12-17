@@ -25,6 +25,14 @@ public class RemReplica extends Operation {
                 '}';
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof RemReplica)) return false;
+        RemReplica that = (RemReplica) o;
+        return node.equals(that.node);
+    }
+
     public static Serializer<Operation> serializer = new Serializer<Operation>() {
         @Override
         public void serialize(Operation operation, ByteBuf buf) throws IOException {

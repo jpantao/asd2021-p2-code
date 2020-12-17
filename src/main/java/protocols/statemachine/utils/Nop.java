@@ -9,6 +9,12 @@ public class Nop extends Operation {
     }
 
     @Override
+    public boolean equals(Object o){
+        if (this == o) return true;
+        return o instanceof Nop;
+    }
+
+    @Override
     public String toString() {
         return "Nop{}";
     }
@@ -23,6 +29,4 @@ public class Nop extends Operation {
             return new Nop();
         }
     };
-
-
 }
