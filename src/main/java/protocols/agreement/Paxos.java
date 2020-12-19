@@ -4,6 +4,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.agreement.messages.*;
 import protocols.agreement.notifications.DecidedNotification;
+import protocols.agreement.timers.RoundTimer;
 import protocols.statemachine.notifications.ExecutedNotification;
 import protocols.statemachine.notifications.JoinedNotification;
 import protocols.agreement.requests.AddReplicaRequest;
@@ -29,19 +30,17 @@ public class Paxos extends GenericProtocol {
 
     private Host self; //My own address/port
 
-    private final Map<Integer, PaxosState> instances;
-    private final Set<Host> membership;
+    private Map<Integer, Instance> instances;
+    private Set<Host> membership;
     private final int n;
-    private final int quorumTimeout;
-    private int lastExecutedInstance;
+    private final int roundTimeout;
+    private long roundTimer;
+    private int executed;
 
     public Paxos(Properties props) throws IOException, HandlerRegistrationException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.n = Integer.parseInt(props.getProperty("n"));
-        this.quorumTimeout = Integer.parseInt(props.getProperty("quorum_timeout"));
-        this.membership = new HashSet<>();
-        this.instances = new HashMap<>();
-        this.lastExecutedInstance = -1;
+        this.roundTimeout = Integer.parseInt(props.getProperty("quorum_timeout"));
 
         /*---------------------- Register Timer Handlers --------------------------- */
         registerTimerHandler(QuorumTimer.TIMER_ID, this::uponQuorumTimeout);
@@ -82,168 +81,64 @@ public class Paxos extends GenericProtocol {
             registerMessageHandler(cId, PrepareOkMessage.MSG_ID, this::uponPrepareOk);
             registerMessageHandler(cId, AcceptMessage.MSG_ID, this::uponAccept);
             registerMessageHandler(cId, AcceptOkMessage.MSG_ID, this::uponAcceptOk);
-            registerMessageHandler(cId, RejectMessage.MSG_ID, this::uponReject);
         } catch (HandlerRegistrationException e) {
             throw new AssertionError("Error registering message handler.", e);
         }
     }
 
+    /*--------------------------------- Notifications ------------------------------ */
+    private void uponJoined(JoinedNotification notification, short sourceProto) {
+        membership = new HashSet<>(notification.getMembership());
+        executed = notification.getJoinInstance() - 1;
+        instances = new HashMap<>();
+    }
+
+
     /*--------------------------------- Requests ----------------------------------- */
     private void uponPropose(ProposeRequest request, short sourceProto) {
         logger.debug("Propose: {}  - {}", request.getInstance(), Arrays.hashCode(request.getOperation()));
-        int instance = request.getInstance();
-        PaxosState state = instances.computeIfAbsent(instance, k -> new PaxosState(n));
-        state.setProposedByMeValueFromAbove(request.getOperation());
-        state.setPrepared(n);
 
-        if (!state.isDecided())
-            sendPrepares(instance, n, state);
+        Instance instance = instances.computeIfAbsent(request.getInstance(), k -> new Instance());
+
+        if(instance.decision != null)
+            return;
+
+        instance.initProposer(n, request.getOperation());
+        roundTimer = setupTimer(new RoundTimer(request.getInstance()), roundTimeout);
+
 
     }
 
-    private boolean canDecide(PaxosState state, int instance) {
-        return lastExecutedInstance == (instance - 1)
-                && state.getAcceptQuorum().size() > membership.size() / 2
-                && !state.isDecided();
-    }
-
-    private void decide(PaxosState state, int instance) {
-        triggerNotification(new DecidedNotification(instance, state.getVa()));
-        state.decided();
-    }
-
-    private void sendPrepares(int instance, int np, PaxosState state) {
-        PrepareMessage msg = new PrepareMessage(instance, np);
-        logger.debug("Sending: {}", msg);
-        for (Host p : membership)
-            sendMessage(msg, p);
-        long quorumTimer = setupTimer(new QuorumTimer(instance), quorumTimeout);
-        state.setQuorumTimerID(quorumTimer);
-    }
 
     /*--------------------------------- Messages ----------------------------------- */
 
     private void uponPrepare(PrepareMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received: {} from {}", msg, from);
-        int instance = msg.getInstance();
-        int np = msg.getN();
-        PaxosState state = instances.get(instance);
 
-        if (state == null) {
-            state = new PaxosState(np);
-            state.setPrepared(np);
-            instances.put(instance, state);
-            logger.debug("Sending: {}", new PrepareOkMessage(instance, np, state.getNa(), state.getVa()));
-            sendMessage(new PrepareOkMessage(instance, np, state.getNa(), state.getVa()), from);
-        } else if (np > state.getNp()) {
-            state.setNp(np);
-            state.setPrepared(np);
-            logger.debug("Sending: {}", new PrepareOkMessage(instance, np, state.getNa(), state.getVa()));
-            sendMessage(new PrepareOkMessage(instance, np, state.getNa(), state.getVa()), from);
-        }
+
     }
 
     private void uponPrepareOk(PrepareOkMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received: {} from {}", msg, from);
-        int instance = msg.getInstance();
-        PaxosState state = instances.get(instance);
-        int naReceived = msg.getNa();
-        byte[] vaReceived = msg.getVa();
-        int highestNa = state.getHighestNa();
 
 
-        if(msg.getN() < state.getPrepared())
-            return;
-
-        state.updatePrepareQuorum(from);
-
-        if (naReceived > highestNa) {
-//            state.setHighestNa(naReceived);
-            state.setHighestVa(vaReceived);
-        }
-
-        if (state.getPrepareQuorum().size() > membership.size() / 2 && state.getPrepared() != -1) {
-
-            state.setPrepared(-1);
-
-            cancelTimer(state.getQuorumTimerID());
-            byte[] v = state.getHighestVa();
-            if (v == null) {
-                state.changeToMyVal();
-                v = state.getVa();
-            }
-
-            state.setVa(v);
-
-
-
-            logger.debug("Sending: {}", new AcceptMessage(instance, msg.getN(), v));
-            for (Host p : membership)
-                sendMessage(new AcceptMessage(instance, state.getNp(), v), p);
-
-            //TODO: podemos usar apenas um timer maior sem fazer reset
-            long quorumTimer = setupTimer(new QuorumTimer(instance), quorumTimeout);
-            state.setQuorumTimerID(quorumTimer);
-        }
     }
 
     private void uponAccept(AcceptMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received: {} from {}", msg, from);
-        int instance = msg.getInstance();
-        int np = msg.getN();
-        byte[] v = msg.getV();
-        PaxosState state = instances.get(instance);
-        if (state == null) {
-            state = new PaxosState(np, v);
-            instances.put(instance, state);
-        }
 
-        if (np >= state.getNp()) {
-            state.setNa(np);
-            state.setVa(v);
-            logger.debug("Sending: {}", new AcceptOkMessage(instance, np, v));
-            for (Host p : membership)
-                sendMessage(new AcceptOkMessage(instance, np, v), p);
-        }
     }
 
     private void uponAcceptOk(AcceptOkMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received: {} from {}", msg, from);
-        int instance = msg.getInstance();
-        int n = msg.getN();
-        byte[] v = msg.getV();
-        PaxosState state = instances.get(instance);
-        if (state == null) {
-            state = new PaxosState(n, n, v);
-            instances.put(instance, state);
-        }
 
-        if (n > state.getNa()) {
-            state.setNa(n);
-            state.setVa(v);
-            state.resetAcceptQuorum();
-        } else if (n < state.getNa())
-            return;
-        state.updateAcceptQuorum(from);
-        if (canDecide(state, instance))
-            decide(state, instance);
 
     }
 
-    private void uponReject(RejectMessage msg, Host from, short sourceProto, int channelId) {
-        cancelTimer(instances.get(msg.getInstance()).getQuorumTimerID());
-    }
-
-    private void uponJoined(JoinedNotification notification, short sourceProto) {
-        membership.addAll(notification.getMembership());
-    }
 
 
     private void uponExecuted(ExecutedNotification notification, short sourceProto) {
-        lastExecutedInstance = notification.getInstance();
-        PaxosState state = instances.get(lastExecutedInstance + 1);
-        if (state != null && canDecide(state, lastExecutedInstance + 1))
-            decide(state, lastExecutedInstance + 1);
+
     }
 
     private void uponRemoveReplica(RemoveReplicaRequest request, short sourceProto) {
@@ -258,12 +153,6 @@ public class Paxos extends GenericProtocol {
     /* -------------------------------- Timers ------------------------------------- */
 
     private void uponQuorumTimeout(QuorumTimer quorumTimer, long timerID) {
-        int instance = quorumTimer.getInstance();
-        PaxosState state = instances.get(instance);
-        if (!state.isDecided()) {
-            state.resetPrepareQuorum();
-            state.resetAcceptQuorum();
-            sendPrepares(instance, state.getNp() + membership.size() + n, state);
-        }
+
     }
 }
