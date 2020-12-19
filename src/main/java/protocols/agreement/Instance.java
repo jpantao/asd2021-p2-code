@@ -3,6 +3,7 @@ package protocols.agreement;
 import protocols.agreement.messages.AcceptOkMessage;
 import protocols.agreement.messages.PrepareOkMessage;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -26,7 +27,6 @@ public class Instance {
 
 
     Instance(){
-
     }
 
     void initProposer(int n, byte[] v){
@@ -48,6 +48,21 @@ public class Instance {
         this.decision = null;
     }
 
+    @Override
+    public String toString() {
+        return "Instance{" +
+                "pn=" + pn +
+                ", pv=" + Arrays.hashCode(pv) +
+                ", pQuorum=" + pQuorum +
+                ", anp=" + anp +
+                ", ana=" + ana +
+                ", ava=" + Arrays.hashCode(ava) +
+                ", lna=" + lna +
+                ", lva=" + Arrays.hashCode(lva) +
+                ", lQuorum=" + lQuorum +
+                ", decision=" + Arrays.hashCode(decision) +
+                '}';
+    }
 }
 
 

@@ -38,7 +38,7 @@ public class Paxos extends GenericProtocol {
     public Paxos(Properties props) throws IOException, HandlerRegistrationException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.n = Integer.parseInt(props.getProperty("n"));
-        this.roundTimeout = Integer.parseInt(props.getProperty("quorum_timeout"));
+        this.roundTimeout = Integer.parseInt(props.getProperty("round_timeout"));
 
         /*---------------------- Register Timer Handlers --------------------------- */
         registerTimerHandler(RoundTimer.TIMER_ID, this::uponRoundTimeout);
@@ -85,7 +85,7 @@ public class Paxos extends GenericProtocol {
     }
 
     /*--------------------------------- Notifications ------------------------------ */
-    private void uponJoined(JoinedNotification notification, short sourceProto) {
+    private void uponJoined(JoinedNotification notification, short sourceProto) { ;
         membership = new HashSet<>(notification.getMembership());
         executed = notification.getJoinInstance() - 1;
         instances = new HashMap<>();
@@ -98,14 +98,16 @@ public class Paxos extends GenericProtocol {
         Instance instance = instances.computeIfAbsent(request.getInstance(),
                 k -> new Instance());
 
-        if (instance.decision != null)
-            return; // already decided
+//        if (instance.decision != null)
+//            return; // already decided
 
         if (instance.pn == null)
             instance.initProposer(n, request.getOperation());
 
-        for (Host acceptor : membership)
+        for (Host acceptor : membership) {
+            logger.debug("Sending: {} to {}", new PrepareMessage(request.getInstance(), instance.pn), acceptor);
             sendMessage(new PrepareMessage(request.getInstance(), instance.pn), acceptor);
+        }
 
         roundTimer = setupTimer(new RoundTimer(request.getInstance()), roundTimeout);
 
@@ -125,6 +127,7 @@ public class Paxos extends GenericProtocol {
 
         if (msg.getN() > instance.anp) {
             instance.anp = msg.getN();
+            logger.debug("Sending: {} to {}", new PrepareOkMessage(msg.getInstance(), msg.getN(), instance.ana, instance.ava), from);
             sendMessage(new PrepareOkMessage(msg.getInstance(), msg.getN(), instance.ana, instance.ava), from);
         }
 
@@ -142,11 +145,15 @@ public class Paxos extends GenericProtocol {
         if (instance.pQuorum.size() > membership.size() / 2) {
             Optional<PrepareOkMessage> op = instance.pQuorum.stream()
                     .max(Comparator.comparingInt(PrepareOkMessage::getNa));
-            instance.pv = op.map(PrepareOkMessage::getVa).orElse(instance.pv);
+            if(op.get().getVa() != null)
+                instance.pv = op.get().getVa();
 
-            for (Host acceptor : membership)
+
+            for (Host acceptor : membership) {
+                logger.debug("Sending: {} to {}", new AcceptMessage(msg.getInstance(), instance.pn, instance.pv), acceptor);
                 sendMessage(new AcceptMessage(msg.getInstance(), instance.pn, instance.pv),
                         acceptor);
+            }
         }
     }
 
@@ -161,9 +168,11 @@ public class Paxos extends GenericProtocol {
         if (msg.getN() >= instance.anp) {
             instance.ana = msg.getN();
             instance.ava = msg.getV();
-            for (Host learner : membership)
+            for (Host learner : membership) {
+                logger.debug("Sending: {} to {}", new AcceptOkMessage(msg.getInstance(), instance.ana, instance.ava), learner);
                 sendMessage(new AcceptOkMessage(msg.getInstance(), instance.ana, instance.ava),
                         learner);
+            }
         }
     }
 
@@ -183,21 +192,27 @@ public class Paxos extends GenericProtocol {
             return;
 
         instance.lQuorum.add(msg);
-        if (instance.lQuorum.size() > membership.size() / 2 && instance.decision == null) {
+//        logger.info("executed {} - instance {}", executed, instance);
+        if (executed == msg.getInstance() - 1 && instance.lQuorum.size() > membership.size() / 2
+                && instance.decision == null) {
+//            logger.debug("will decide {}", instance.lva);
             instance.decision = instance.lva;
-            if (executed == msg.getInstance() - 1) {
-                cancelTimer(roundTimer);
-                triggerNotification(new DecidedNotification(msg.getInstance(), instance.decision));
-            }
+            cancelTimer(roundTimer);
+            triggerNotification(new DecidedNotification(msg.getInstance(), instance.decision));
         }
 
     }
 
     private void uponExecuted(ExecutedNotification notification, short sourceProto) {
         executed = notification.getInstance();
-        Instance instance = instances.get(notification.getInstance());
-        if(instance != null && instance.decision != null)
-            triggerNotification(new DecidedNotification(notification.getInstance(), instance.decision));
+        Instance instance = instances.get(executed + 1);
+//        logger.info("executed {} - instance {}", executed, instance);
+        if (instance != null && instance.decision == null && instance.lna != null && instance.lQuorum.size() > membership.size() / 2 ){
+//            logger.debug("will decide {}", instance.lva);
+            instance.decision = instance.lva;
+            cancelTimer(roundTimer);
+            triggerNotification(new DecidedNotification(executed + 1, instance.decision));
+        }
     }
 
     private void uponRemoveReplica(RemoveReplicaRequest request, short sourceProto) {
