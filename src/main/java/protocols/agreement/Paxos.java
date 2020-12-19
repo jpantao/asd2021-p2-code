@@ -123,7 +123,7 @@ public class Paxos extends GenericProtocol {
         if (instance.anp == null)
             instance.initAcceptor();
 
-        if(msg.getN() > instance.anp){
+        if (msg.getN() > instance.anp) {
             instance.anp = msg.getN();
             sendMessage(new PrepareOkMessage(msg.getInstance(), msg.getN(), instance.ana, instance.ava), from);
         }
@@ -132,24 +132,72 @@ public class Paxos extends GenericProtocol {
 
     private void uponPrepareOk(PrepareOkMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received: {} from {}", msg, from);
+        Instance instance = instances.computeIfAbsent(msg.getInstance(),
+                k -> new Instance());
 
+        if (msg.getN() != instance.pn)
+            return;
 
+        instance.pQuorum.add(msg);
+        if (instance.pQuorum.size() > membership.size() / 2) {
+            Optional<PrepareOkMessage> op = instance.pQuorum.stream()
+                    .max(Comparator.comparingInt(PrepareOkMessage::getNa));
+            instance.pv = op.map(PrepareOkMessage::getVa).orElse(instance.pv);
+
+            for (Host acceptor : membership)
+                sendMessage(new AcceptMessage(msg.getInstance(), instance.pn, instance.pv),
+                        acceptor);
+        }
     }
 
     private void uponAccept(AcceptMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received: {} from {}", msg, from);
+        Instance instance = instances.computeIfAbsent(msg.getInstance(),
+                k -> new Instance());
 
+        if (instance.anp == null) //TODO: not sure if needed,  maybe update after initializing
+            instance.initAcceptor();
+
+        if (msg.getN() >= instance.anp) {
+            instance.ana = msg.getN();
+            instance.ava = msg.getV();
+            for (Host learner : membership)
+                sendMessage(new AcceptOkMessage(msg.getInstance(), instance.ana, instance.ava),
+                        learner);
+        }
     }
 
     private void uponAcceptOk(AcceptOkMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received: {} from {}", msg, from);
+        Instance instance = instances.computeIfAbsent(msg.getInstance(),
+                k -> new Instance());
 
+        if (instance.lna == null)
+            instance.initLearner();
+
+        if (msg.getN() > instance.lna) {
+            instance.lna = msg.getN();
+            instance.lva = msg.getV();
+            instance.lQuorum.clear();
+        } else if (msg.getN() < instance.lna)
+            return;
+
+        instance.lQuorum.add(msg);
+        if (instance.lQuorum.size() > membership.size() / 2 && instance.decision == null) {
+            instance.decision = instance.lva;
+            if (executed == msg.getInstance() - 1) {
+                cancelTimer(roundTimer);
+                triggerNotification(new DecidedNotification(msg.getInstance(), instance.decision));
+            }
+        }
 
     }
 
-
     private void uponExecuted(ExecutedNotification notification, short sourceProto) {
-
+        executed = notification.getInstance();
+        Instance instance = instances.get(notification.getInstance());
+        if(instance != null && instance.decision != null)
+            triggerNotification(new DecidedNotification(notification.getInstance(), instance.decision));
     }
 
     private void uponRemoveReplica(RemoveReplicaRequest request, short sourceProto) {
