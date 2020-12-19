@@ -16,7 +16,7 @@ public class Instance {
     // acceptor
     Integer anp;
     Integer ana;
-    Integer ava;
+    byte[] ava;
 
     // learner
     Integer lna;

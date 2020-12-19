@@ -10,8 +10,6 @@ import protocols.statemachine.notifications.JoinedNotification;
 import protocols.agreement.requests.AddReplicaRequest;
 import protocols.agreement.requests.ProposeRequest;
 import protocols.agreement.requests.RemoveReplicaRequest;
-import protocols.agreement.timers.QuorumTimer;
-import protocols.agreement.utils.PaxosState;
 import protocols.statemachine.notifications.ChannelReadyNotification;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
@@ -32,7 +30,7 @@ public class Paxos extends GenericProtocol {
 
     private Map<Integer, Instance> instances;
     private Set<Host> membership;
-    private final int n;
+    private int n;
     private final int roundTimeout;
     private long roundTimer;
     private int executed;
@@ -43,7 +41,7 @@ public class Paxos extends GenericProtocol {
         this.roundTimeout = Integer.parseInt(props.getProperty("quorum_timeout"));
 
         /*---------------------- Register Timer Handlers --------------------------- */
-        registerTimerHandler(QuorumTimer.TIMER_ID, this::uponQuorumTimeout);
+        registerTimerHandler(RoundTimer.TIMER_ID, this::uponRoundTimeout);
 
         /*---------------------- Register Request Handlers ------------------------- */
         registerRequestHandler(ProposeRequest.REQUEST_ID, this::uponPropose);
@@ -97,13 +95,18 @@ public class Paxos extends GenericProtocol {
     /*--------------------------------- Requests ----------------------------------- */
     private void uponPropose(ProposeRequest request, short sourceProto) {
         logger.debug("Propose: {}  - {}", request.getInstance(), Arrays.hashCode(request.getOperation()));
+        Instance instance = instances.computeIfAbsent(request.getInstance(),
+                k -> new Instance());
 
-        Instance instance = instances.computeIfAbsent(request.getInstance(), k -> new Instance());
+        if (instance.decision != null)
+            return; // already decided
 
-        if(instance.decision != null)
-            return;
+        if (instance.pn == null)
+            instance.initProposer(n, request.getOperation());
 
-        instance.initProposer(n, request.getOperation());
+        for (Host acceptor : membership)
+            sendMessage(new PrepareMessage(request.getInstance(), instance.pn), acceptor);
+
         roundTimer = setupTimer(new RoundTimer(request.getInstance()), roundTimeout);
 
 
@@ -114,7 +117,16 @@ public class Paxos extends GenericProtocol {
 
     private void uponPrepare(PrepareMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received: {} from {}", msg, from);
+        Instance instance = instances.computeIfAbsent(msg.getInstance(),
+                k -> new Instance());
 
+        if (instance.anp == null)
+            instance.initAcceptor();
+
+        if(msg.getN() > instance.anp){
+            instance.anp = msg.getN();
+            sendMessage(new PrepareOkMessage(msg.getInstance(), msg.getN(), instance.ana, instance.ava), from);
+        }
 
     }
 
@@ -136,7 +148,6 @@ public class Paxos extends GenericProtocol {
     }
 
 
-
     private void uponExecuted(ExecutedNotification notification, short sourceProto) {
 
     }
@@ -152,7 +163,12 @@ public class Paxos extends GenericProtocol {
 
     /* -------------------------------- Timers ------------------------------------- */
 
-    private void uponQuorumTimeout(QuorumTimer quorumTimer, long timerID) {
-
+    private void uponRoundTimeout(RoundTimer timer, long timerID) {
+        Instance instance = instances.get(timer.getInstance());
+        //getNextN
+        instance.pn += membership.size(); //TODO: can generate conflicts and is unfair
+        for (Host acceptor : membership)
+            sendMessage(new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
+        roundTimer = setupTimer(new RoundTimer(timer.getInstance()), roundTimeout);
     }
 }
