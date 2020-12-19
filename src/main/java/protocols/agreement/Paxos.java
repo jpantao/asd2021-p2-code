@@ -94,6 +94,7 @@ public class Paxos extends GenericProtocol {
         int instance = request.getInstance();
         PaxosState state = instances.computeIfAbsent(instance, k -> new PaxosState(n));
         state.setProposedByMeValueFromAbove(request.getOperation());
+        state.setPrepared(n);
 
         if (!state.isDecided())
             sendPrepares(instance, n, state);
@@ -132,12 +133,12 @@ public class Paxos extends GenericProtocol {
             state = new PaxosState(np);
             state.setPrepared(np);
             instances.put(instance, state);
-            logger.debug("Sending: {}", new PrepareOkMessage(instance, state.getNp(), state.getNa(), state.getVa()));
+            logger.debug("Sending: {}", new PrepareOkMessage(instance, np, state.getNa(), state.getVa()));
             sendMessage(new PrepareOkMessage(instance, np, state.getNa(), state.getVa()), from);
         } else if (np > state.getNp()) {
             state.setNp(np);
             state.setPrepared(np);
-            logger.debug("Sending: {}", new PrepareOkMessage(instance, state.getNp(), state.getNa(), state.getVa()));
+            logger.debug("Sending: {}", new PrepareOkMessage(instance, np, state.getNa(), state.getVa()));
             sendMessage(new PrepareOkMessage(instance, np, state.getNa(), state.getVa()), from);
         }
     }
@@ -151,13 +152,13 @@ public class Paxos extends GenericProtocol {
         int highestNa = state.getHighestNa();
 
 
-        if(msg.getN() < state.getNp())
+        if(msg.getN() < state.getPrepared())
             return;
 
         state.updatePrepareQuorum(from);
 
         if (naReceived > highestNa) {
-            state.setHighestNa(naReceived);
+//            state.setHighestNa(naReceived);
             state.setHighestVa(vaReceived);
         }
 
