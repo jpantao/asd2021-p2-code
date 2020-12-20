@@ -89,16 +89,28 @@ public class Paxos extends GenericProtocol {
         instances = new HashMap<>();
     }
 
+    private void uponExecuted(ExecutedNotification notification, short sourceProto) {
+        executed = notification.getInstance();
+        Instance instance = instances.get(executed + 1);
+
+        if(instance == null || instance.lna == null)
+            return;
+
+        if (instance.decision == null
+                && instance.lQuorum.size() > membership.size() / 2) {
+            instance.decision = instance.lva;
+            triggerNotification(new DecidedNotification(executed+1, instance.decision));
+        }
+    }
 
     /*--------------------------------- Requests ----------------------------------- */
+
     private void uponPropose(ProposeRequest request, short sourceProto) {
         logger.debug("Propose: {}  - {}", request.getInstance(), Arrays.hashCode(request.getOperation()));
         Instance instance = instances.computeIfAbsent(request.getInstance(),
                 k -> new Instance());
-
         if (instance.decision != null)
             return; // already decided
-
         if (instance.pn == null)
             instance.initProposer(n, request.getOperation());
 
@@ -108,9 +120,15 @@ public class Paxos extends GenericProtocol {
         }
 
         roundTimer = setupTimer(new RoundTimer(request.getInstance()), roundTimeout);
-
     }
 
+    private void uponRemoveReplica(RemoveReplicaRequest request, short sourceProto) {
+        membership.remove(request.getReplica());
+    }
+
+    private void uponAddReplica(AddReplicaRequest request, short sourceProto) {
+        membership.add(request.getReplica());
+    }
 
     /*--------------------------------- Messages ----------------------------------- */
 
@@ -118,23 +136,20 @@ public class Paxos extends GenericProtocol {
         logger.debug("Received: {} from {}", msg, from);
         Instance instance = instances.computeIfAbsent(msg.getInstance(),
                 k -> new Instance());
-
         if (instance.anp == null)
             instance.initAcceptor();
 
         if (msg.getN() > instance.anp) {
             instance.anp = msg.getN();
-            logger.debug("Sending: {} to {}", new PrepareOkMessage(msg.getInstance(), msg.getN(), instance.ana, instance.ava), from);
-            sendMessage(new PrepareOkMessage(msg.getInstance(), msg.getN(), instance.ana, instance.ava), from);
+            logger.debug("Sending: {} to {}", new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava), from);
+            sendMessage(new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava), from);
         }
-
     }
 
     private void uponPrepareOk(PrepareOkMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received: {} from {}", msg, from);
         Instance instance = instances.computeIfAbsent(msg.getInstance(),
                 k -> new Instance());
-
         if (msg.getN() != instance.pn)
             return;
 
@@ -143,9 +158,9 @@ public class Paxos extends GenericProtocol {
                 && instance.pQuorum.size() > membership.size() / 2) {
             Optional<PrepareOkMessage> op = instance.pQuorum.stream()
                     .max(Comparator.comparingInt(PrepareOkMessage::getNa));
-            instance.lockedIn = true;
             if(op.get().getVa() != null)
                 instance.pv = op.get().getVa();
+            instance.lockedIn = true;
 
 
             for (Host acceptor : membership) {
@@ -160,8 +175,7 @@ public class Paxos extends GenericProtocol {
         logger.debug("Received: {} from {}", msg, from);
         Instance instance = instances.computeIfAbsent(msg.getInstance(),
                 k -> new Instance());
-
-        if (instance.anp == null) //TODO: not sure if needed,  maybe update after initializing
+        if (instance.anp == null)
             instance.initAcceptor();
 
         if (msg.getN() >= instance.anp) {
@@ -179,7 +193,6 @@ public class Paxos extends GenericProtocol {
         logger.debug("Received: {} from {}", msg, from);
         Instance instance = instances.computeIfAbsent(msg.getInstance(),
                 k -> new Instance());
-
         if (instance.lna == null)
             instance.initLearner();
 
@@ -192,42 +205,14 @@ public class Paxos extends GenericProtocol {
 
         instance.lQuorum.add(msg);
 
-
         if(executed < msg.getInstance() -1)
             return;
-
         if (instance.decision == null
                 && instance.lQuorum.size() > membership.size() / 2) {
             instance.decision = instance.lva;
-
             cancelTimer(roundTimer);
             triggerNotification(new DecidedNotification(msg.getInstance(), instance.decision));
-
         }
-
-    }
-
-    private void uponExecuted(ExecutedNotification notification, short sourceProto) {
-        executed = notification.getInstance();
-        Instance instance = instances.get(executed + 1);
-
-        if(instance == null || instance.lna == null)
-            return;
-
-        if (instance.lQuorum.size() > membership.size() / 2
-                && instance.decision == null) {
-            instance.decision = instance.lva;
-            cancelTimer(roundTimer);
-            triggerNotification(new DecidedNotification(executed+1, instance.decision));
-        }
-    }
-
-    private void uponRemoveReplica(RemoveReplicaRequest request, short sourceProto) {
-        membership.remove(request.getReplica());
-    }
-
-    private void uponAddReplica(AddReplicaRequest request, short sourceProto) {
-        membership.add(request.getReplica());
     }
 
     /* -------------------------------- Timers ------------------------------------- */

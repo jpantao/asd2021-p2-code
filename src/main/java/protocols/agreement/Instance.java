@@ -12,8 +12,8 @@ public class Instance {
     // proposer
     Integer pn;
     byte[] pv;
-    boolean lockedIn;
     Set<PrepareOkMessage> pQuorum;
+    boolean lockedIn;
 
     // acceptor
     Integer anp;
@@ -25,7 +25,6 @@ public class Instance {
     byte[] lva;
     Set<AcceptOkMessage> lQuorum;
     byte[] decision;
-
 
     Instance(){
     }
