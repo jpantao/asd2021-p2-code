@@ -348,7 +348,7 @@ public class StateMachine extends GenericProtocol {
     }
 
     private void newProposal(Operation proposal) {
-        if (pendingOps.isEmpty() && rediretOps.isEmpty() && state == State.ACTIVE)
+        if (pendingOps.isEmpty() && state == State.ACTIVE)
             propose(proposal);
         pendingOps.add(proposal);
         resetNopTimerMP();
