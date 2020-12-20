@@ -104,37 +104,39 @@ sleep 5
 # ----------------------------------- START EXP -------------------------------
 
 
-echo -e $BLUE "Starting servers and sleeping 15" $NC
-
+echo -e $BLUE "Starting servers and sleeping 100" $NC
+i=0
 for servernode in $servernodes
 do
 	oarsh $servernode "mkdir -p logs/${expname}; \
 			java \
-				-Dlog4j.configurationFile=config/log4j2.xml \
+				-Dlog4j.configurationFile=eval/server/log4j2.xml \
 				-DlogFilename=logs/${expname}/server_${nthreads}_${nservers}_${servernode} \
-				-cp server/asdProj2.jar Main -conf config.properties server_port=${server_port} \
+				-cp eval/server/asdProj2.jar Main -conf eval/server/config.properties server_port=${server_port} \
+				n=$(($i + 1)) \
 				p2p_port=${p2p_port} interface=bond0 \
 				initial_membership=${servers_p2p}" 2>&1 | sed "s/^/[s-$servernode] /" &
 	sleep 1
+	i=$(($i + 1))
 done
 
-sleep 15
+sleep 100
 
-echo -e $BLUE "Starting clients and sleeping 70" $NC
+echo -e $BLUE "Starting clients and sleeping 12000" $NC
 
 for node in $clientnodes
 do
 	oarsh $node "mkdir -p logs/${expname}; \
 		mkdir -p results/${expname}; \
-		java -Dlog4j.configurationFile=log4j2.xml \
+		java -Dlog4j.configurationFile=eval/client/log4j2.xml \
 				-DlogFilename=logs/${expname}/client_${nthreads}_${nservers}_${node} \
-				-cp client/asd-client.jar site.ycsb.Client -t -s -P client/config.properties \
+				-cp eval/client/asd-client.jar site.ycsb.Client -t -s -P eval/client/config.properties \
 				-threads $nthreads -p fieldlength=1000 \
 				-p hosts=$servers_server -p readproportion=50 -p updateproportion=50 \
 				> results/${expname}/${nthreads}_${nservers}_${node}.log" 2>&1 | sed "s/^/[c-$node] /" &
 done
 
-sleep 70
+sleep 12000
 
 echo "Killing clients"
 for node in $clientnodes

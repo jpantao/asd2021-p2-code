@@ -10,7 +10,7 @@ MPAXOS_DIR = "./results/multi-paxos"
 
 NSERVERS = 3
 CLIENTS = [0]
-NTHREADS = [3, 6, 9, 12, 15, 18]
+NTHREADS = [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 47, 60]
 
 
 def extract_values(experience_dir):

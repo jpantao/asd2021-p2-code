@@ -10,7 +10,7 @@ public class RemReplica extends Operation {
     private final Host node;
 
     public RemReplica(Host node) {
-        super(Type.ADD_REP);
+        super(Type.REM_REP);
         this.node = node;
     }
 

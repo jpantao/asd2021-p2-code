@@ -15,7 +15,6 @@ import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.network.data.Host;
 
-import java.io.IOException;
 import java.util.*;
 
 public class Paxos extends GenericProtocol {
@@ -26,16 +25,14 @@ public class Paxos extends GenericProtocol {
     public static final short PROTOCOL_ID = 110;
     public static final String PROTOCOL_NAME = "Paxos";
 
-    private Host self; //My own address/port
-
     private Map<Integer, Instance> instances;
     private Set<Host> membership;
-    private int n;
+    private final int n;
     private final int roundTimeout;
     private long roundTimer;
     private int executed;
 
-    public Paxos(Properties props) throws IOException, HandlerRegistrationException {
+    public Paxos(Properties props) throws HandlerRegistrationException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.n = Integer.parseInt(props.getProperty("n"));
         this.roundTimeout = Integer.parseInt(props.getProperty("round_timeout"));
@@ -62,7 +59,8 @@ public class Paxos extends GenericProtocol {
 
     private void uponChannelCreated(ChannelReadyNotification notification, short sourceProto) {
         int cId = notification.getChannelId();
-        self = notification.getMyself();
+        //My own address/port
+        Host self = notification.getMyself();
         logger.info("Channel {} created, I am {}", cId, self);
         // Allows this protocol to receive events from this channel.
         registerSharedChannel(cId);
@@ -85,7 +83,7 @@ public class Paxos extends GenericProtocol {
     }
 
     /*--------------------------------- Notifications ------------------------------ */
-    private void uponJoined(JoinedNotification notification, short sourceProto) { ;
+    private void uponJoined(JoinedNotification notification, short sourceProto) {
         membership = new HashSet<>(notification.getMembership());
         executed = notification.getJoinInstance() - 1;
         instances = new HashMap<>();
@@ -98,8 +96,8 @@ public class Paxos extends GenericProtocol {
         Instance instance = instances.computeIfAbsent(request.getInstance(),
                 k -> new Instance());
 
-//        if (instance.decision != null)
-//            return; // already decided
+        if (instance.decision != null)
+            return; // already decided
 
         if (instance.pn == null)
             instance.initProposer(n, request.getOperation());
@@ -110,7 +108,6 @@ public class Paxos extends GenericProtocol {
         }
 
         roundTimer = setupTimer(new RoundTimer(request.getInstance()), roundTimeout);
-
 
     }
 
@@ -142,9 +139,11 @@ public class Paxos extends GenericProtocol {
             return;
 
         instance.pQuorum.add(msg);
-        if (instance.pQuorum.size() > membership.size() / 2) {
+        if (!instance.lockedIn
+                && instance.pQuorum.size() > membership.size() / 2) {
             Optional<PrepareOkMessage> op = instance.pQuorum.stream()
                     .max(Comparator.comparingInt(PrepareOkMessage::getNa));
+            instance.lockedIn = true;
             if(op.get().getVa() != null)
                 instance.pv = op.get().getVa();
 
@@ -192,13 +191,18 @@ public class Paxos extends GenericProtocol {
             return;
 
         instance.lQuorum.add(msg);
-//        logger.info("executed {} - instance {}", executed, instance);
-        if (executed == msg.getInstance() - 1 && instance.lQuorum.size() > membership.size() / 2
-                && instance.decision == null) {
-//            logger.debug("will decide {}", instance.lva);
+
+
+        if(executed < msg.getInstance() -1)
+            return;
+
+        if (instance.decision == null
+                && instance.lQuorum.size() > membership.size() / 2) {
             instance.decision = instance.lva;
+
             cancelTimer(roundTimer);
             triggerNotification(new DecidedNotification(msg.getInstance(), instance.decision));
+
         }
 
     }
@@ -206,12 +210,15 @@ public class Paxos extends GenericProtocol {
     private void uponExecuted(ExecutedNotification notification, short sourceProto) {
         executed = notification.getInstance();
         Instance instance = instances.get(executed + 1);
-//        logger.info("executed {} - instance {}", executed, instance);
-        if (instance != null && instance.decision == null && instance.lna != null && instance.lQuorum.size() > membership.size() / 2 ){
-//            logger.debug("will decide {}", instance.lva);
+
+        if(instance == null || instance.lna == null)
+            return;
+
+        if (instance.lQuorum.size() > membership.size() / 2
+                && instance.decision == null) {
             instance.decision = instance.lva;
             cancelTimer(roundTimer);
-            triggerNotification(new DecidedNotification(executed + 1, instance.decision));
+            triggerNotification(new DecidedNotification(executed+1, instance.decision));
         }
     }
 
@@ -223,13 +230,14 @@ public class Paxos extends GenericProtocol {
         membership.add(request.getReplica());
     }
 
-
     /* -------------------------------- Timers ------------------------------------- */
 
     private void uponRoundTimeout(RoundTimer timer, long timerID) {
         Instance instance = instances.get(timer.getInstance());
         //getNextN
         instance.pn += membership.size(); //TODO: can generate conflicts and is unfair
+        instance.pQuorum.clear();
+        instance.lockedIn = false;
         for (Host acceptor : membership)
             sendMessage(new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
         roundTimer = setupTimer(new RoundTimer(timer.getInstance()), roundTimeout);
