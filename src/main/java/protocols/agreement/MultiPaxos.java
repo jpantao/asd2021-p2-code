@@ -184,7 +184,7 @@ public class MultiPaxos extends GenericProtocol {
             instance.initAcceptor();
 
         if (msg.getN() >= instance.anp) {
-            if (msg.getLastN() > 0 && self != from) {
+            if (msg.getLastN() > 0 && msg.getLastV() != null && self != from) {
                 Instance lastInstance = instances.get(msg.getInstance() - 1);
                 lastInstance.initLearner();
                 lastInstance.lna = msg.getLastN();
@@ -221,6 +221,8 @@ public class MultiPaxos extends GenericProtocol {
             return;
         if (instance.decision == null && instance.lQuorum.size() > membership.size() / 2) {
             instance.decision = instance.lva;
+            vDecided = instance.lva;
+            nDecided = instance.lna;
             cancelTimer(roundTimer);
             triggerNotification(new DecidedNotification(msg.getInstance(), instance.decision));
             executed++;
