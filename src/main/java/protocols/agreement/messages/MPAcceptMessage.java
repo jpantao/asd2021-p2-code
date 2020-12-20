@@ -13,10 +13,11 @@ public class MPAcceptMessage extends ProtoMessage {
 
     private final int ins;
     private final int n;
-    private final byte[] opDecided;
     private final byte[] newOp;
+    private final byte[] opDecided;
 
-    public MPAcceptMessage(int ins, int n, byte[] opDecided, byte[] newOp) {
+
+    public MPAcceptMessage(int ins, int n, int lastlna ,byte[] lastlva, byte[] newOp) {
         super(MSG_ID);
         this.ins = ins;
         this.n = n;
@@ -32,11 +33,11 @@ public class MPAcceptMessage extends ProtoMessage {
         return n;
     }
 
-    public byte[] getOpDecided() {
+    public byte[] getLastV() {
         return opDecided;
     }
 
-    public byte[] getNewOp() {
+    public byte[] getNewV() {
         return newOp;
     }
 
