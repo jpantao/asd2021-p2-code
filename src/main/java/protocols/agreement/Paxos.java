@@ -69,8 +69,6 @@ public class Paxos extends GenericProtocol {
         registerMessageSerializer(cId, PrepareOkMessage.MSG_ID, PrepareOkMessage.serializer);
         registerMessageSerializer(cId, AcceptMessage.MSG_ID, AcceptMessage.serializer);
         registerMessageSerializer(cId, AcceptOkMessage.MSG_ID, AcceptOkMessage.serializer);
-        registerMessageSerializer(cId, RejectMessage.MSG_ID, RejectMessage.serializer);
-
         /*---------------------- Register Message Handlers -------------------------- */
         try {
             registerMessageHandler(cId, PrepareMessage.MSG_ID, this::uponPrepare);
@@ -205,7 +203,7 @@ public class Paxos extends GenericProtocol {
 
         instance.lQuorum.add(msg);
 
-        if(executed < msg.getInstance() -1)
+        if(executed < msg.getInstance() - 1)
             return;
         if (instance.decision == null
                 && instance.lQuorum.size() > membership.size() / 2) {
