@@ -35,7 +35,8 @@ public class MultiPaxos extends GenericProtocol {
     private int executed;
     private Host leader;
     private Host self;
-    private byte[] opDecided;
+    private byte[] vDecided;
+    private int nDecided;
 
 
     public MultiPaxos(Properties props) throws IOException, HandlerRegistrationException {
@@ -43,7 +44,8 @@ public class MultiPaxos extends GenericProtocol {
         this.n = Integer.parseInt(props.getProperty("n"));
         this.roundTimeout = Integer.parseInt(props.getProperty("round_timeout"));
         this.leader = null;
-        this.opDecided = null;
+        this.vDecided = null;
+        this.nDecided = -1;
 
 
         /*---------------------- Register Timer Handlers --------------------------- */
@@ -94,21 +96,20 @@ public class MultiPaxos extends GenericProtocol {
         instances = new HashMap<>();
     }
 
+    /*
     private void uponExecuted(ExecutedNotification notification, short sourceProto) {
         executed = notification.getInstance();
         Instance instance = instances.get(executed + 1);
 
-        if (instance == null || instance.lna == null)
+        if (leader != self || instance == null || instance.lna == null)
             return;
 
-        if (instance.decision == null
-                && instance.lQuorum.size() > membership.size() / 2) {
+        if (instance.decision == null && instance.lQuorum.size() > membership.size() / 2) {
             instance.decision = instance.lva;
             triggerNotification(new DecidedNotification(executed + 1, instance.decision));
         }
-
     }
-
+    */
     /*--------------------------------- Requests ----------------------------------- */
     private void uponPropose(ProposeRequest request, short sourceProto) {
         logger.debug("Propose: {}  - {}", request.getInstance(), Arrays.hashCode(request.getOperation()));
@@ -122,7 +123,7 @@ public class MultiPaxos extends GenericProtocol {
         for (Host acceptor : membership) {
             logger.debug("Sending: {} to {}", new PrepareMessage(request.getInstance(), instance.pn), acceptor);
             if (leader == self)
-                sendMessage(new MPAcceptMessage(request.getInstance(), instance.pn, opDecided, request.getOperation()), acceptor);
+                sendMessage(new MPAcceptMessage(request.getInstance(), instance.pn, nDecided, vDecided, request.getOperation()), acceptor);
             else
                 sendMessage(new PrepareMessage(request.getInstance(), instance.pn), acceptor);
         }
@@ -170,8 +171,7 @@ public class MultiPaxos extends GenericProtocol {
 
             for (Host acceptor : membership) {
                 logger.debug("Sending: {} to {}", new AcceptMessage(msg.getInstance(), instance.pn, instance.pv), acceptor);
-                sendMessage(new MPAcceptMessage(msg.getInstance(), instance.pn, null, instance.pv),
-                        acceptor);
+                sendMessage(new MPAcceptMessage(msg.getInstance(), instance.pn, -1, null, instance.pv), acceptor);
             }
         }
     }
@@ -184,19 +184,17 @@ public class MultiPaxos extends GenericProtocol {
             instance.initAcceptor();
 
         if (msg.getN() >= instance.anp) {
-            byte[] lastDecidedV = msg.getLastV();
-            if (lastDecidedV != null && self != from) {
+            if (msg.getLastN() > 0 && self != from) {
                 Instance lastInstance = instances.get(msg.getInstance() - 1);
                 lastInstance.initLearner();
-                lastInstance.lva = lastDecidedV;
-                lastInstance.lna = msg.
-                if (executed == msg.getInstance() - 2) {
-                    lastInstance.decision = lastInstance.lva;
-                    triggerNotification(new DecidedNotification(msg.getInstance() - 1, lastInstance.decision));
-                }
+                lastInstance.lna = msg.getLastN();
+                lastInstance.lva = msg.getLastV();
+                lastInstance.decision = lastInstance.lva;
+                triggerNotification(new DecidedNotification(msg.getInstance() - 1, lastInstance.decision));
+                executed++;
             }
             instance.ana = msg.getN();
-            instance.ava = msg.getNewV();
+            instance.ava = msg.getV();
 
             logger.debug("Sending: {} to {}", new AcceptOkMessage(msg.getInstance(), instance.ana, instance.ava), from);
             sendMessage(new AcceptOkMessage(msg.getInstance(), instance.ana, instance.ava), from);
@@ -221,11 +219,11 @@ public class MultiPaxos extends GenericProtocol {
 
         if (executed < msg.getInstance() - 1)
             return;
-        if (instance.decision == null
-                && instance.lQuorum.size() > membership.size() / 2) {
+        if (instance.decision == null && instance.lQuorum.size() > membership.size() / 2) {
             instance.decision = instance.lva;
             cancelTimer(roundTimer);
             triggerNotification(new DecidedNotification(msg.getInstance(), instance.decision));
+            executed++;
         }
     }
 
