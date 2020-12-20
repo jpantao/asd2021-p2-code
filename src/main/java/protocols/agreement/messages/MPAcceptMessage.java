@@ -18,7 +18,7 @@ public class MPAcceptMessage extends ProtoMessage {
     private final byte[] v;
 
 
-    public MPAcceptMessage(int ins, int n, int lastn, byte[] lastv, byte[] v) {
+    public MPAcceptMessage(int ins, int n, byte[] v, int lastn, byte[] lastv) {
         super(MSG_ID);
         this.ins = ins;
         this.n = n;
@@ -52,9 +52,9 @@ public class MPAcceptMessage extends ProtoMessage {
         return "MPAcceptMessage{" +
                 "ins=" + ins +
                 ", n=" + n +
+                ", v=" + Arrays.hashCode(v) +
                 ", lastn=" + lastn +
-                ", lastv=" + Arrays.toString(lastv) +
-                ", v=" + Arrays.toString(v) +
+                ", lastv=" + Arrays.hashCode(lastv) +
                 '}';
     }
 
@@ -63,23 +63,28 @@ public class MPAcceptMessage extends ProtoMessage {
         public void serialize(MPAcceptMessage msg, ByteBuf byteBuf) throws IOException {
             byteBuf.writeInt(msg.ins);
             byteBuf.writeInt(msg.n);
-            byteBuf.writeInt(msg.lastn);
-            byteBuf.writeInt(msg.lastv.length);
             byteBuf.writeInt(msg.v.length);
-            byteBuf.writeBytes(msg.lastv);
             byteBuf.writeBytes(msg.v);
+            byteBuf.writeInt(msg.lastn);
+            if (msg.lastn >= 0) {
+                byteBuf.writeInt(msg.lastv.length);
+                byteBuf.writeBytes(msg.lastv);
+            }
         }
 
         @Override
         public MPAcceptMessage deserialize(ByteBuf byteBuf) throws IOException {
             int ins = byteBuf.readInt();
             int n = byteBuf.readInt();
-            int ln = byteBuf.readInt();
-            byte[] lv = new byte[byteBuf.readInt()];
             byte[] v = new byte[byteBuf.readInt()];
-            byteBuf.readBytes(lv);
             byteBuf.readBytes(v);
-            return new MPAcceptMessage(ins, n, ln, lv, v);
+            int ln = byteBuf.readInt();
+            byte[] lv = null;
+            if (ln >= 0) {
+                lv = new byte[byteBuf.readInt()];
+                byteBuf.readBytes(lv);
+            }
+            return new MPAcceptMessage(ins, n, v, ln, lv);
         }
     };
 }

@@ -13,7 +13,7 @@ public class Instance {
     Integer pn;
     byte[] pv;
     Set<PrepareOkMessage> pQuorum;
-    boolean lockedIn;
+    boolean lockedIn; //TODO: change name
 
     // acceptor
     Integer anp;

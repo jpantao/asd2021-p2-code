@@ -34,6 +34,7 @@ public class MultiPaxos extends GenericProtocol {
     private long roundTimer;
     private int executed;
     private Host leader;
+    private int leaderN;
     private Host self;
     private byte[] vDecided;
     private int nDecided;
@@ -44,6 +45,7 @@ public class MultiPaxos extends GenericProtocol {
         this.n = Integer.parseInt(props.getProperty("n"));
         this.roundTimeout = Integer.parseInt(props.getProperty("round_timeout"));
         this.leader = null;
+        this.leaderN = -1;
         this.vDecided = null;
         this.nDecided = -1;
 
@@ -118,12 +120,12 @@ public class MultiPaxos extends GenericProtocol {
         if (instance.decision != null)
             return; // already decided
         if (instance.pn == null)
-            instance.initProposer(n, request.getOperation());
+            instance.initProposer(leaderN, request.getOperation());
 
         for (Host acceptor : membership) {
             logger.debug("Sending: {} to {}", new PrepareMessage(request.getInstance(), instance.pn), acceptor);
-            if (leader == self)
-                sendMessage(new MPAcceptMessage(request.getInstance(), instance.pn, nDecided, vDecided, request.getOperation()), acceptor);
+            if (leader != null && leader.equals(self))
+                sendMessage(new MPAcceptMessage(request.getInstance(), instance.pn, request.getOperation(), nDecided, vDecided), acceptor);
             else
                 sendMessage(new PrepareMessage(request.getInstance(), instance.pn), acceptor);
         }
@@ -143,8 +145,9 @@ public class MultiPaxos extends GenericProtocol {
 
         if (msg.getN() > instance.anp) {
             instance.anp = msg.getN();
-            if (from != self) {
+            if (!from.equals(self) && (leader == null || !leader.equals(from))) {
                 leader = from;
+                leaderN = msg.getN();
                 triggerNotification(new LeaderElectedNotification(from, msg.getInstance()));
             }
             logger.debug("Sending: {} to {}", new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava), from);
@@ -171,7 +174,7 @@ public class MultiPaxos extends GenericProtocol {
 
             for (Host acceptor : membership) {
                 logger.debug("Sending: {} to {}", new AcceptMessage(msg.getInstance(), instance.pn, instance.pv), acceptor);
-                sendMessage(new MPAcceptMessage(msg.getInstance(), instance.pn, -1, null, instance.pv), acceptor);
+                sendMessage(new MPAcceptMessage(msg.getInstance(), instance.pn, instance.pv, -1, null), acceptor);
             }
         }
     }
@@ -242,13 +245,23 @@ public class MultiPaxos extends GenericProtocol {
 
     private void uponRoundTimeout(RoundTimer timer, long timerID) {
         Instance instance = instances.get(timer.getInstance());
-        //getNextN
-        instance.pn += membership.size(); //TODO: can generate conflicts and is unfair
-        instance.pQuorum.clear();
-        instance.lockedIn = false;
-        for (Host acceptor : membership)
-            sendMessage(new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
-        roundTimer = setupTimer(new RoundTimer(timer.getInstance()), roundTimeout);
+        if (leader == null) {
+            //getNextN
+            instance.pn += membership.size(); //TODO: can generate conflicts and is unfair
+            instance.pQuorum.clear();
+            instance.lockedIn = false;
+            for (Host acceptor : membership) {
+                logger.debug("Sending: {} to {}", new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
+                sendMessage(new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
+            }
+            roundTimer = setupTimer(new RoundTimer(timer.getInstance()), roundTimeout);
+        } else if (leader.equals(self)) {
+            for (Host acceptor : membership) {
+                logger.debug("Sending: {} to {}", new MPAcceptMessage(timer.getInstance(), instance.pn, instance.pv, nDecided, vDecided), acceptor);
+                sendMessage(new MPAcceptMessage(timer.getInstance(), instance.pn, instance.pv, nDecided, vDecided), acceptor);
+            }
+            roundTimer = setupTimer(new RoundTimer(timer.getInstance()), roundTimeout);
+        }
     }
 
     /*--------------------------------- Requests ----------------------------------- */
