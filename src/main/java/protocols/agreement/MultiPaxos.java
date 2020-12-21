@@ -156,9 +156,17 @@ public class MultiPaxos extends GenericProtocol {
             leader = from;
             triggerNotification(new LeaderElectedNotification(from, msg.getInstance()));
             instance.anp = msg.getN();
-            logger.debug("Sending: {} to {}", new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava), from);
-            sendMessage(new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava), from);
-            //TODO: prepareOk report values for instances >= n
+
+            //Leader behind
+            List<byte[]> futureValues = new LinkedList<>();
+            int inst = executed - msg.getInstance();
+            for (int i = 0; i < inst; i++)
+                futureValues.add(instances.get(i).decision);
+
+            logger.debug("Sending: {} to {}", new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava, futureValues), from);
+            sendMessage(new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava, futureValues), from);
+
+
         }
     }
 
@@ -166,7 +174,13 @@ public class MultiPaxos extends GenericProtocol {
         logger.debug("Received: {} from {}", msg, from);
         Instance instance = instances.computeIfAbsent(msg.getInstance(), k -> new Instance());
 
-        //TODO: resend values for missing instances
+        if (!msg.getFutureValues().isEmpty()) {
+            for (int i = 0; i < msg.getFutureValues().size(); i++)
+            for (Host acceptor : membership) {
+                logger.debug("Sending: {} to {}", new AcceptMessage(msg.getInstance(), instance.pn, instance.pv), acceptor);
+                sendMessage(new AcceptMessage(msg.getInstance(), instance.pn, instance.pv), acceptor);
+            }
+        }
 
         if (msg.getN() != instance.pn)
             return;
