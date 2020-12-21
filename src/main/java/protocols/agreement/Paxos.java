@@ -218,7 +218,7 @@ public class Paxos extends GenericProtocol {
         logger.debug("Round timed out, resending prepares");
         Instance instance = instances.get(timer.getInstance());
         //getNextN
-        instance.pn += membership.size(); //TODO: can generate conflicts and is unfair
+        instance.pn += membership.size(); 
         instance.pQuorum.clear();
         for (Host acceptor : membership)
             sendMessage(new PrepareMessage(timer.getInstance(), instance.pn), acceptor);

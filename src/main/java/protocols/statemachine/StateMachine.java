@@ -244,6 +244,7 @@ public class StateMachine extends GenericProtocol {
         // nextInstance = notification.getInstance() + 1;
         pendingOps.removeAll(rediretOps);
         rediretOps.clear();
+        proposeNext();
     }
 
     /*--------------------------------- Messages -------------------------------------- */
@@ -285,7 +286,6 @@ public class StateMachine extends GenericProtocol {
     private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
         logger.debug("Connection to {} is up", event.getNode());
 
-        //TODO optimization: could send a join message to only one replica
         if (state == State.JOINING) {
             logger.debug("Sending join request to {}", event.getNode());
             sendMessage(new JoinMessage(), event.getNode());

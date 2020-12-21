@@ -39,6 +39,7 @@ public class MultiPaxos extends GenericProtocol {
     private int executed;
     private Host leader;
     private Host self;
+    private Random rand;
 
 
     public MultiPaxos(Properties props) throws IOException, HandlerRegistrationException {
@@ -47,7 +48,7 @@ public class MultiPaxos extends GenericProtocol {
         this.roundTimeout = Integer.parseInt(props.getProperty("round_timeout"));
         this.leader = null;
         this.heartbeatTimeout = Integer.parseInt(props.getProperty("heartbeat_timeout"));
-
+        rand = new Random();
 
         /*---------------------- Register Timer Handlers --------------------------- */
         registerTimerHandler(HeartbeatTimer.TIMER_ID, this::uponHeartbeat);
@@ -128,7 +129,6 @@ public class MultiPaxos extends GenericProtocol {
             else
                 sendMessage(new PrepareMessage(request.getInstance(), instance.pn), acceptor);
         }
-
         roundTimer = setupTimer(new RoundTimer(request.getInstance()), roundTimeout);
     }
 
@@ -161,6 +161,7 @@ public class MultiPaxos extends GenericProtocol {
             for (Map.Entry<Integer, Instance> entry : futureEntries.entrySet()) {
                 futurePrepareOks.add(new PrepareOkMessage(entry.getKey(), msg.getN(), entry.getValue().ana, entry.getValue().ava));
             }
+
             logger.debug("Sending: {} to {}", new MPPrepareOkMessage(msg.getInstance(), instance.anp, futurePrepareOks), from);
             sendMessage(new MPPrepareOkMessage(msg.getInstance(), instance.anp, futurePrepareOks), from);
 
@@ -174,19 +175,8 @@ public class MultiPaxos extends GenericProtocol {
             return;
         List<PrepareOkMessage> futurePrepareOks = msg.getFuturePrepareOks();
         for (PrepareOkMessage futurePrepareOk : futurePrepareOks)
-            prepareOk(instance.pn, futurePrepareOk, from);
-    }
-
-    private void prepareOk(int pn, PrepareOkMessage msg, Host from) {
-        logger.debug("Private prepareOk: {} from {}", msg, from);
-        Instance instance = instances.get(msg.getInstance());
-        if (instance == null) {
-            instance = new Instance();
-            instances.put(msg.getInstance(), instance);
-        }
-        if (instance.pQuorum == null)
-            instance.initProposer(pn, msg.getVa());
-        instance.pQuorum.add(Pair.of(msg.getNa(), msg.getVa()));
+            updateInstances(instance.pn, futurePrepareOk);
+        instance = instances.get(msg.getInstance());
         if (instance.pQuorum.size() == membership.size() / 2 + 1) {
             Instance finalInstance = instance;
             instance.pQuorum.stream()
@@ -199,6 +189,17 @@ public class MultiPaxos extends GenericProtocol {
                 sendMessage(new AcceptMessage(msg.getInstance(), instance.pn, instance.pv), acceptor);
             }
         }
+    }
+
+    private void updateInstances(int pn, PrepareOkMessage msg) {
+        Instance instance = instances.get(msg.getInstance());
+        if (instance == null) {
+            instance = new Instance();
+            instances.put(msg.getInstance(), instance);
+        }
+        if (instance.pQuorum == null)
+            instance.initProposer(pn, msg.getVa());
+        instance.pQuorum.add(Pair.of(msg.getNa(), msg.getVa()));
     }
 
     private void uponAccept(AcceptMessage msg, Host from, short sourceProto, int channelId) {
@@ -214,8 +215,7 @@ public class MultiPaxos extends GenericProtocol {
             instance.ava = msg.getV();
             for (Host learner : membership) {
                 logger.debug("Sending: {} to {}", new AcceptOkMessage(msg.getInstance(), instance.ana, instance.ava), learner);
-                sendMessage(new AcceptOkMessage(msg.getInstance(), instance.ana, instance.ava),
-                        learner);
+                sendMessage(new AcceptOkMessage(msg.getInstance(), instance.ana, instance.ava), learner);
             }
         }
         heartbeatTimer = setupTimer(new HeartbeatTimer(msg.getInstance()), heartbeatTimeout);
@@ -251,32 +251,26 @@ public class MultiPaxos extends GenericProtocol {
     private void uponRoundTimeout(RoundTimer timer, long timerID) {
         Instance instance = instances.get(timer.getInstance());
         if (leader == null) {
-            instance.pn += membership.size(); //TODO: can generate conflicts and is unfair
+            instance.pn += membership.size();
             instance.pQuorum.clear();
             for (Host acceptor : membership) {
                 logger.debug("Sending: {} to {}", new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
                 sendMessage(new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
+                roundTimer = setupTimer(new RoundTimer(timer.getInstance()), roundTimeout);
             }
         } else if (leader.equals(self)) {
             for (Host acceptor : membership) {
                 logger.debug("Sending: {} to {}", new AcceptMessage(timer.getInstance(), instance.pn, instance.pv), acceptor);
                 sendMessage(new AcceptMessage(timer.getInstance(), instance.pn, instance.pv), acceptor);
             }
+            roundTimer = setupTimer(new RoundTimer(timer.getInstance()), roundTimeout);
         }
-        roundTimer = setupTimer(new RoundTimer(timer.getInstance()), roundTimeout);
-    }
-
-    private void retryPrepare(Instance instance, int inst) {
-
     }
 
     private void uponHeartbeat(HeartbeatTimer timer, long timerID) {
         Instance instance = instances.get(timer.getInstance());
         instance.initProposer(n, instance.ava);
         leader = null;
-        for (Host acceptor : membership) {
-            logger.debug("Sending: {} to {}", new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
-            sendMessage(new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
-        }
+        roundTimer = setupTimer(new RoundTimer(timer.getInstance()), roundTimeout + rand.nextInt(roundTimeout));
     }
 }
