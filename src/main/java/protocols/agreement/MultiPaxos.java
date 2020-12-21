@@ -158,9 +158,9 @@ public class MultiPaxos extends GenericProtocol {
             //Leader behind
             List<PrepareOkMessage> futurePrepareOks = new LinkedList<>();
             SortedMap<Integer, Instance> futureEntries = instances.tailMap(msg.getInstance());
-            for (Map.Entry<Integer, Instance> entry : futureEntries.entrySet())
+            for (Map.Entry<Integer, Instance> entry : futureEntries.entrySet()) {
                 futurePrepareOks.add(new PrepareOkMessage(entry.getKey(), msg.getN(), entry.getValue().ana, entry.getValue().ava));
-
+            }
             logger.debug("Sending: {} to {}", new MPPrepareOkMessage(msg.getInstance(), instance.anp, futurePrepareOks), from);
             sendMessage(new MPPrepareOkMessage(msg.getInstance(), instance.anp, futurePrepareOks), from);
 
@@ -174,19 +174,25 @@ public class MultiPaxos extends GenericProtocol {
             return;
         List<PrepareOkMessage> futurePrepareOks = msg.getFuturePrepareOks();
         for (PrepareOkMessage futurePrepareOk : futurePrepareOks)
-            prepareOk(futurePrepareOk, from);
+            prepareOk(instance.pn, futurePrepareOk, from);
     }
 
-    private void prepareOk(PrepareOkMessage msg, Host from) {
+    private void prepareOk(int pn, PrepareOkMessage msg, Host from) {
         logger.debug("Private prepareOk: {} from {}", msg, from);
-        Instance instance = instances.computeIfAbsent(msg.getInstance(),
-                k -> new Instance());
+        Instance instance = instances.get(msg.getInstance());
+        if (instance == null) {
+            instance = new Instance();
+            instances.put(msg.getInstance(), instance);
+        }
+        if (instance.pQuorum == null)
+            instance.initProposer(pn, msg.getVa());
         instance.pQuorum.add(Pair.of(msg.getNa(), msg.getVa()));
         if (instance.pQuorum.size() == membership.size() / 2 + 1) {
+            Instance finalInstance = instance;
             instance.pQuorum.stream()
                     .filter(op -> op.getValue() != null)               // filter out all messages without va
                     .max(Comparator.comparingInt(Pair::getKey))        // get message with highest na
-                    .ifPresent(pair -> instance.pv = pair.getValue()); // if found set pv to received va
+                    .ifPresent(pair -> finalInstance.pv = pair.getValue()); // if found set pv to received va
 
             for (Host acceptor : membership) {
                 logger.debug("Sending: {} to {}", new AcceptMessage(msg.getInstance(), instance.pn, instance.pv), acceptor);
@@ -245,7 +251,12 @@ public class MultiPaxos extends GenericProtocol {
     private void uponRoundTimeout(RoundTimer timer, long timerID) {
         Instance instance = instances.get(timer.getInstance());
         if (leader == null) {
-            retryPrepare(instance, timer.getInstance());
+            instance.pn += membership.size(); //TODO: can generate conflicts and is unfair
+            instance.pQuorum.clear();
+            for (Host acceptor : membership) {
+                logger.debug("Sending: {} to {}", new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
+                sendMessage(new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
+            }
         } else if (leader.equals(self)) {
             for (Host acceptor : membership) {
                 logger.debug("Sending: {} to {}", new AcceptMessage(timer.getInstance(), instance.pn, instance.pv), acceptor);
@@ -256,18 +267,16 @@ public class MultiPaxos extends GenericProtocol {
     }
 
     private void retryPrepare(Instance instance, int inst) {
-        instance.pn += membership.size(); //TODO: can generate conflicts and is unfair
-        instance.pQuorum.clear();
-        for (Host acceptor : membership) {
-            logger.debug("Sending: {} to {}", new PrepareMessage(inst, instance.pn), acceptor);
-            sendMessage(new PrepareMessage(inst, instance.pn), acceptor);
-        }
+
     }
 
     private void uponHeartbeat(HeartbeatTimer timer, long timerID) {
         Instance instance = instances.get(timer.getInstance());
+        instance.initProposer(n, instance.ava);
         leader = null;
-        //getNextN
-        retryPrepare(instance, timer.getInstance());
+        for (Host acceptor : membership) {
+            logger.debug("Sending: {} to {}", new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
+            sendMessage(new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
+        }
     }
 }
