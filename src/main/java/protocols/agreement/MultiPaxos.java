@@ -203,7 +203,7 @@ public class MultiPaxos extends GenericProtocol {
 
     private void uponAccept(AcceptMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received: {} from {}", msg, from);
-        cancelTimer(heartbeatTimeout);
+        cancelTimer(heartbeatTimer);
         Instance instance = instances.computeIfAbsent(msg.getInstance(),
                 k -> new Instance());
         if (instance.anp == null)
