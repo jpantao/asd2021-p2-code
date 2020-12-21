@@ -1,11 +1,13 @@
 package protocols.agreement;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.agreement.messages.*;
 import protocols.agreement.notifications.DecidedNotification;
 import protocols.agreement.notifications.LeaderElectedNotification;
 import protocols.agreement.requests.ProposeRequest;
+import protocols.agreement.timers.HeartbeatTimer;
 import protocols.agreement.timers.RoundTimer;
 import protocols.statemachine.notifications.ExecutedNotification;
 import protocols.statemachine.notifications.JoinedNotification;
@@ -27,18 +29,16 @@ public class MultiPaxos extends GenericProtocol {
     public static final short PROTOCOL_ID = 120;
     public static final String PROTOCOL_NAME = "MultiPaxos";
 
-    private Map<Integer, Instance> instances;
+    private SortedMap<Integer, Instance> instances;
     private Set<Host> membership;
     private final int n;
     private final int roundTimeout;
     private long roundTimer;
+    private final int heartbeatTimeout;
+    private long heartbeatTimer;
     private int executed;
     private Host leader;
-    private int leaderN;
     private Host self;
-    private byte[] vDecided;
-    private int nDecided;
-    private List<byte[]> futureValues;
 
 
     public MultiPaxos(Properties props) throws IOException, HandlerRegistrationException {
@@ -46,14 +46,11 @@ public class MultiPaxos extends GenericProtocol {
         this.n = Integer.parseInt(props.getProperty("n"));
         this.roundTimeout = Integer.parseInt(props.getProperty("round_timeout"));
         this.leader = null;
-        this.leaderN = n;
-        this.vDecided = null;
-        this.nDecided = -1;
-        this.futureValues = new LinkedList<>();
+        this.heartbeatTimeout = Integer.parseInt(props.getProperty("heartbeat_timeout"));
 
 
         /*---------------------- Register Timer Handlers --------------------------- */
-        //registerTimerHandler(LeaderTimer.TIMER_ID, this::uponLeaderTimeout);
+        registerTimerHandler(HeartbeatTimer.TIMER_ID, this::uponHeartbeat);
         registerTimerHandler(RoundTimer.TIMER_ID, this::uponRoundTimeout);
 
         /*---------------------- Register Request Handlers ------------------------- */
@@ -86,7 +83,7 @@ public class MultiPaxos extends GenericProtocol {
         /*---------------------- Register Message Handlers -------------------------- */
         try {
             registerMessageHandler(cId, PrepareMessage.MSG_ID, this::uponPrepare);
-            registerMessageHandler(cId, MPPrepareOkMessage.MSG_ID, this::uponPrepareOk);
+            registerMessageHandler(cId, MPPrepareOkMessage.MSG_ID, this::uponMPPrepareOk);
             registerMessageHandler(cId, AcceptMessage.MSG_ID, this::uponAccept);
             registerMessageHandler(cId, AcceptOkMessage.MSG_ID, this::uponAcceptOk);
         } catch (HandlerRegistrationException e) {
@@ -98,7 +95,7 @@ public class MultiPaxos extends GenericProtocol {
     private void uponJoined(JoinedNotification notification, short sourceProto) {
         membership = new HashSet<>(notification.getMembership());
         executed = notification.getJoinInstance() - 1;
-        instances = new HashMap<>();
+        instances = new TreeMap<>();
     }
 
     private void uponExecuted(ExecutedNotification notification, short sourceProto) {
@@ -108,8 +105,7 @@ public class MultiPaxos extends GenericProtocol {
         if (instance == null || instance.lna == null)
             return;
 
-        if (instance.decision == null
-                && instance.lQuorum.size() > membership.size() / 2) {
+        if (instance.decision == null && instance.lQuorum.size() > membership.size() / 2) {
             instance.decision = instance.lva;
             triggerNotification(new DecidedNotification(executed + 1, instance.decision));
         }
@@ -160,62 +156,48 @@ public class MultiPaxos extends GenericProtocol {
             instance.anp = msg.getN();
 
             //Leader behind
-            List<byte[]> futureValues = new LinkedList<>();
-            int inst = executed - msg.getInstance();
-            for (int i = 0; i < inst; i++)
-                futureValues.add(instances.get(i).decision);
+            List<PrepareOkMessage> futurePrepareOks = new LinkedList<>();
+            SortedMap<Integer, Instance> futureEntries = instances.tailMap(msg.getInstance());
+            for (Map.Entry<Integer, Instance> entry : futureEntries.entrySet())
+                futurePrepareOks.add(new PrepareOkMessage(entry.getKey(), msg.getN(), entry.getValue().ana, entry.getValue().ava));
 
-            logger.debug("Sending: {} to {}", new MPPrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava, futureValues), from);
-            sendMessage(new MPPrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava, futureValues), from);
+            logger.debug("Sending: {} to {}", new MPPrepareOkMessage(msg.getInstance(), instance.anp, futurePrepareOks), from);
+            sendMessage(new MPPrepareOkMessage(msg.getInstance(), instance.anp, futurePrepareOks), from);
+
         }
     }
 
-    private void uponPrepareOk(MPPrepareOkMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponMPPrepareOk(MPPrepareOkMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received: {} from {}", msg, from);
         Instance instance = instances.computeIfAbsent(msg.getInstance(), k -> new Instance());
-
-        if (!msg.getFutureValues().isEmpty()) {
-            for (int i = futureValues.size(); i < msg.getFutureValues().size(); i++)
-                futureValues.add(msg.getFutureValues().get(i));
-        }
-
         if (msg.getN() != instance.pn)
             return;
+        List<PrepareOkMessage> futurePrepareOks = msg.getFuturePrepareOks();
+        for (PrepareOkMessage futurePrepareOk : futurePrepareOks)
+            prepareOk(futurePrepareOk, from);
+    }
 
-        //instance.pQuorum.add(msg);
-        if ( instance.pQuorum.size() == membership.size() / 2 + 1) {
-            if (!futureValues.isEmpty()) {
-                instance.pv = futureValues.get(0);
-                for (int i = 0; i < msg.getFutureValues().size(); i++) {
-                    Instance nextInstance = instances.computeIfAbsent(msg.getInstance() + i, k -> new Instance());
-                    nextInstance.initProposer(instance.pn, futureValues.get(i));
-                    for (Host acceptor : membership) {
-                        logger.debug("Sending: {} to {}", new AcceptMessage(msg.getInstance() + i, nextInstance.pn, nextInstance.pv), acceptor);
-                        sendMessage(new AcceptMessage(msg.getInstance() + i, nextInstance.pn, nextInstance.pv), acceptor);
-                    }
-                }
-            }
-
-//            Optional<PrepareOkMessage> op = instance.pQuorum.stream().max(Comparator.comparingInt(PrepareOkMessage::getNa));
-//
-//            if (op.get().getVa() != null) {
-//                instance.pv = op.get().getVa();
-//            }
-
+    private void prepareOk(PrepareOkMessage msg, Host from) {
+        logger.debug("Private prepareOk: {} from {}", msg, from);
+        Instance instance = instances.computeIfAbsent(msg.getInstance(),
+                k -> new Instance());
+        instance.pQuorum.add(Pair.of(msg.getNa(), msg.getVa()));
+        if (instance.pQuorum.size() == membership.size() / 2 + 1) {
+            instance.pQuorum.stream()
+                    .filter(op -> op.getValue() != null)               // filter out all messages without va
+                    .max(Comparator.comparingInt(Pair::getKey))        // get message with highest na
+                    .ifPresent(pair -> instance.pv = pair.getValue()); // if found set pv to received va
 
             for (Host acceptor : membership) {
-                logger.debug("Sending: {} to {}", new AcceptMessage(msg.getInstance() + futureValues.size(), instance.pn, instance.pv), acceptor);
-                sendMessage(new AcceptMessage(msg.getInstance(), instance.pn, instance.pv),
-                        acceptor);
+                logger.debug("Sending: {} to {}", new AcceptMessage(msg.getInstance(), instance.pn, instance.pv), acceptor);
+                sendMessage(new AcceptMessage(msg.getInstance(), instance.pn, instance.pv), acceptor);
             }
-
-
-
         }
     }
 
     private void uponAccept(AcceptMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received: {} from {}", msg, from);
+        cancelTimer(heartbeatTimeout);
         Instance instance = instances.computeIfAbsent(msg.getInstance(),
                 k -> new Instance());
         if (instance.anp == null)
@@ -230,6 +212,7 @@ public class MultiPaxos extends GenericProtocol {
                         learner);
             }
         }
+        heartbeatTimer = setupTimer(new HeartbeatTimer(msg.getInstance()), heartbeatTimeout);
     }
 
     private void uponAcceptOk(AcceptOkMessage msg, Host from, short sourceProto, int channelId) {
@@ -262,152 +245,29 @@ public class MultiPaxos extends GenericProtocol {
     private void uponRoundTimeout(RoundTimer timer, long timerID) {
         Instance instance = instances.get(timer.getInstance());
         if (leader == null) {
-            //getNextN
-            instance.pn += membership.size(); //TODO: can generate conflicts and is unfair
-            instance.pQuorum.clear();
-            for (Host acceptor : membership) {
-                logger.debug("Sending: {} to {}", new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
-                sendMessage(new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
-            }
-            roundTimer = setupTimer(new RoundTimer(timer.getInstance()), roundTimeout);
+            retryPrepare(instance, timer.getInstance());
         } else if (leader.equals(self)) {
             for (Host acceptor : membership) {
                 logger.debug("Sending: {} to {}", new AcceptMessage(timer.getInstance(), instance.pn, instance.pv), acceptor);
                 sendMessage(new AcceptMessage(timer.getInstance(), instance.pn, instance.pv), acceptor);
             }
-            roundTimer = setupTimer(new RoundTimer(timer.getInstance()), roundTimeout);
+        }
+        roundTimer = setupTimer(new RoundTimer(timer.getInstance()), roundTimeout);
+    }
+
+    private void retryPrepare(Instance instance, int inst) {
+        instance.pn += membership.size(); //TODO: can generate conflicts and is unfair
+        instance.pQuorum.clear();
+        for (Host acceptor : membership) {
+            logger.debug("Sending: {} to {}", new PrepareMessage(inst, instance.pn), acceptor);
+            sendMessage(new PrepareMessage(inst, instance.pn), acceptor);
         }
     }
 
-
-    /*--------------------------------- Messages ----------------------------------- */
-    /*
-    private void uponPrepare(PrepareMessage msg, Host from, short sourceProto, int channelId) {
-        logger.debug("Received: {} from {}", msg, from);
-        Instance instance = instances.computeIfAbsent(msg.getInstance(),
-                k -> new Instance());
-        if (instance.anp == null)
-            instance.initAcceptor();
-
-        if (msg.getN() > instance.anp) {
-            instance.anp = msg.getN();
-            if (leaderN < msg.getN()) {
-                leader = from;
-                leaderN = msg.getN();
-                triggerNotification(new LeaderElectedNotification(from, msg.getInstance()));
-            }
-            logger.debug("Sending: {} to {}", new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava), from);
-            sendMessage(new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava), from);
-        }
-    }
-
-    private void uponPrepareOk(PrepareOkMessage msg, Host from, short sourceProto, int channelId) {
-        logger.debug("Received: {} from {}", msg, from);
-        Instance instance = instances.computeIfAbsent(msg.getInstance(),
-                k -> new Instance());
-        if (msg.getN() != instance.pn)
-            return;
-
-        instance.pQuorum.add(msg);
-        if (leaderN == instance.pn && !instance.lockedIn && instance.pQuorum.size() > membership.size() / 2) {
-            Optional<PrepareOkMessage> op = instance.pQuorum.stream()
-                    .max(Comparator.comparingInt(PrepareOkMessage::getNa));
-            if (op.get().getVa() != null)
-                instance.pv = op.get().getVa();
-            instance.lockedIn = true;
-            leader = self;
-            triggerNotification(new LeaderElectedNotification(self, msg.getInstance()));
-
-            for (Host acceptor : membership) {
-                logger.debug("Sending: {} to {}", new AcceptMessage(msg.getInstance(), instance.pn, instance.pv), acceptor);
-                sendMessage(new MPAcceptMessage(msg.getInstance(), instance.pn, instance.pv, -1, null), acceptor);
-            }
-        }
-    }
-
-    private void uponAccept(MPAcceptMessage msg, Host from, short sourceProto, int channelId) {
-        logger.debug("Received: {} from {}", msg, from);
-        Instance instance = instances.computeIfAbsent(msg.getInstance(),
-                k -> new Instance());
-        if (instance.anp == null)
-            instance.initAcceptor();
-
-        if (msg.getN() >= instance.anp) {
-            if (msg.getLastN() > 0 && msg.getLastV() != null && self != from && executed == msg.getInstance() - 2) {
-                Instance lastInstance = instances.get(msg.getInstance() - 1);
-                lastInstance.initLearner();
-                lastInstance.lna = msg.getLastN();
-                lastInstance.lva = msg.getLastV();
-                lastInstance.decision = lastInstance.lva;
-                triggerNotification(new DecidedNotification(msg.getInstance() - 1, lastInstance.decision));
-                executed++;
-            }
-            instance.ana = msg.getN();
-            instance.ava = msg.getV();
-
-            logger.debug("Sending: {} to {}", new AcceptOkMessage(msg.getInstance(), instance.ana, instance.ava), from);
-            sendMessage(new AcceptOkMessage(msg.getInstance(), instance.ana, instance.ava), from);
-        }
-    }
-
-    private void uponAcceptOk(AcceptOkMessage msg, Host from, short sourceProto, int channelId) {
-        logger.debug("Received: {} from {}", msg, from);
-        Instance instance = instances.computeIfAbsent(msg.getInstance(),
-                k -> new Instance());
-        if (instance.lna == null)
-            instance.initLearner();
-
-        if (msg.getN() > instance.lna) {
-            instance.lna = msg.getN();
-            instance.lva = msg.getV();
-            instance.lQuorum.clear();
-        } else if (msg.getN() < instance.lna)
-            return;
-
-        instance.lQuorum.add(msg);
-
-        if (executed < msg.getInstance() - 1)
-            return;
-        if (instance.decision == null && instance.lQuorum.size() > membership.size() / 2) {
-            instance.decision = instance.lva;
-            vDecided = instance.lva;
-            nDecided = instance.lna;
-            cancelTimer(roundTimer);
-            triggerNotification(new DecidedNotification(msg.getInstance(), instance.decision));
-            executed++;
-        }
-    }
-
-    private void uponRemoveReplica(RemoveReplicaRequest request, short sourceProto) {
-        membership.remove(request.getReplica());
-    }
-
-    private void uponAddReplica(AddReplicaRequest request, short sourceProto) {
-        membership.add(request.getReplica());
-    }
-
-
-    /* -------------------------------- Timers ------------------------------------- */
-    /*
-    private void uponRoundTimeout(RoundTimer timer, long timerID) {
+    private void uponHeartbeat(HeartbeatTimer timer, long timerID) {
         Instance instance = instances.get(timer.getInstance());
-        if (leader == null) {
-            //getNextN
-            instance.pn += membership.size(); //TODO: can generate conflicts and is unfair
-            instance.pQuorum.clear();
-            instance.lockedIn = false;
-            for (Host acceptor : membership) {
-                logger.debug("Sending: {} to {}", new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
-                sendMessage(new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
-            }
-            roundTimer = setupTimer(new RoundTimer(timer.getInstance()), roundTimeout);
-        } else if (leader.equals(self)) {
-            for (Host acceptor : membership) {
-                logger.debug("Sending: {} to {}", new MPAcceptMessage(timer.getInstance(), instance.pn, instance.pv, nDecided, vDecided), acceptor);
-                sendMessage(new MPAcceptMessage(timer.getInstance(), instance.pn, instance.pv, nDecided, vDecided), acceptor);
-            }
-            roundTimer = setupTimer(new RoundTimer(timer.getInstance()), roundTimeout);
-        }
+        leader = null;
+        //getNextN
+        retryPrepare(instance, timer.getInstance());
     }
-    */
 }
