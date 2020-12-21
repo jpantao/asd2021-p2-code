@@ -1,18 +1,17 @@
 package protocols.agreement;
 
-import protocols.agreement.messages.AcceptOkMessage;
-import protocols.agreement.messages.PrepareOkMessage;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import org.apache.commons.lang3.tuple.Pair;
+import protocols.agreement.messages.AcceptOkMessage;
+
+import java.util.*;
 
 public class Instance {
 
     // proposer
     Integer pn;
     byte[] pv;
-    Set<PrepareOkMessage> pQuorum;
+    List<Pair<Integer, byte[]>> pQuorum;
 
     // acceptor
     Integer anp;
@@ -22,7 +21,7 @@ public class Instance {
     // learner
     Integer lna;
     byte[] lva;
-    Set<AcceptOkMessage> lQuorum;
+    List<AcceptOkMessage> lQuorum;
     byte[] decision;
 
     Instance(){
@@ -31,7 +30,7 @@ public class Instance {
     void initProposer(int n, byte[] v){
         this.pn = n;
         this.pv = v;
-        this.pQuorum = new HashSet<>();
+        this.pQuorum = new LinkedList<>();
     }
 
     void initAcceptor(){
@@ -43,7 +42,7 @@ public class Instance {
     void initLearner(){
         this.lna = -1;
         this.lva = null;
-        this.lQuorum = new HashSet<>();
+        this.lQuorum = new LinkedList<>();
         this.decision = null;
     }
 

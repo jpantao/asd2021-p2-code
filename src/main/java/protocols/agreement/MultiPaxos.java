@@ -182,9 +182,8 @@ public class MultiPaxos extends GenericProtocol {
         if (msg.getN() != instance.pn)
             return;
 
-        instance.pQuorum.add(msg);
-        if (!instance.lockedIn && instance.pQuorum.size() > membership.size() / 2) {
-            instance.lockedIn = true;
+        //instance.pQuorum.add(msg);
+        if ( instance.pQuorum.size() == membership.size() / 2 + 1) {
             if (!futureValues.isEmpty()) {
                 instance.pv = futureValues.get(0);
                 for (int i = 0; i < msg.getFutureValues().size(); i++) {
@@ -197,11 +196,11 @@ public class MultiPaxos extends GenericProtocol {
                 }
             }
 
-            Optional<PrepareOkMessage> op = instance.pQuorum.stream().max(Comparator.comparingInt(PrepareOkMessage::getNa));
-
-            if (op.get().getVa() != null) {
-                instance.pv = op.get().getVa();
-            }
+//            Optional<PrepareOkMessage> op = instance.pQuorum.stream().max(Comparator.comparingInt(PrepareOkMessage::getNa));
+//
+//            if (op.get().getVa() != null) {
+//                instance.pv = op.get().getVa();
+//            }
 
 
             for (Host acceptor : membership) {
@@ -266,7 +265,6 @@ public class MultiPaxos extends GenericProtocol {
             //getNextN
             instance.pn += membership.size(); //TODO: can generate conflicts and is unfair
             instance.pQuorum.clear();
-            instance.lockedIn = false;
             for (Host acceptor : membership) {
                 logger.debug("Sending: {} to {}", new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
                 sendMessage(new PrepareMessage(timer.getInstance(), instance.pn), acceptor);

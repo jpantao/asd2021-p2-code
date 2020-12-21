@@ -1,5 +1,6 @@
 package protocols.agreement;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.agreement.messages.*;
@@ -152,12 +153,12 @@ public class Paxos extends GenericProtocol {
         if (msg.getN() != instance.pn)
             return;
 
-        instance.pQuorum.add(msg);
+        instance.pQuorum.add(Pair.of(msg.getNa(), msg.getVa()));
         if (instance.pQuorum.size() == membership.size() / 2 + 1) {
             instance.pQuorum.stream()
-                    .filter(op -> op.getVa() != null)                                       // filter out all messages without va
-                    .max(Comparator.comparingInt(PrepareOkMessage::getNa))                  // get message with highest na
-                    .ifPresent(prepareOkMessage -> instance.pv = prepareOkMessage.getVa()); // if found set pv to received va
+                    .filter(op -> op.getValue() != null)               // filter out all messages without va
+                    .max(Comparator.comparingInt(Pair::getKey))        // get message with highest na
+                    .ifPresent(pair -> instance.pv = pair.getValue()); // if found set pv to received va
 
             for (Host acceptor : membership) {
 //                logger.debug("Sending: {} to {}",
