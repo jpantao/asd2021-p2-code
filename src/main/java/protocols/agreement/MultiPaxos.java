@@ -38,6 +38,7 @@ public class MultiPaxos extends GenericProtocol {
     private Host self;
     private byte[] vDecided;
     private int nDecided;
+    private List<byte[]> futureValues;
 
 
     public MultiPaxos(Properties props) throws IOException, HandlerRegistrationException {
@@ -48,6 +49,7 @@ public class MultiPaxos extends GenericProtocol {
         this.leaderN = n;
         this.vDecided = null;
         this.nDecided = -1;
+        this.futureValues = new LinkedList<>();
 
 
         /*---------------------- Register Timer Handlers --------------------------- */
@@ -165,8 +167,6 @@ public class MultiPaxos extends GenericProtocol {
 
             logger.debug("Sending: {} to {}", new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava, futureValues), from);
             sendMessage(new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava, futureValues), from);
-
-
         }
     }
 
@@ -175,11 +175,8 @@ public class MultiPaxos extends GenericProtocol {
         Instance instance = instances.computeIfAbsent(msg.getInstance(), k -> new Instance());
 
         if (!msg.getFutureValues().isEmpty()) {
-            for (int i = 0; i < msg.getFutureValues().size(); i++)
-            for (Host acceptor : membership) {
-                logger.debug("Sending: {} to {}", new AcceptMessage(msg.getInstance(), instance.pn, instance.pv), acceptor);
-                sendMessage(new AcceptMessage(msg.getInstance(), instance.pn, instance.pv), acceptor);
-            }
+            for (int i = futureValues.size(); i < msg.getFutureValues().size(); i++)
+                futureValues.add(msg.getFutureValues().get(i));
         }
 
         if (msg.getN() != instance.pn)
@@ -187,17 +184,34 @@ public class MultiPaxos extends GenericProtocol {
 
         instance.pQuorum.add(msg);
         if (!instance.lockedIn && instance.pQuorum.size() > membership.size() / 2) {
-            Optional<PrepareOkMessage> op = instance.pQuorum.stream().max(Comparator.comparingInt(PrepareOkMessage::getNa));
-            if (op.get().getVa() != null)
-                instance.pv = op.get().getVa();
             instance.lockedIn = true;
+            if (!futureValues.isEmpty()) {
+                instance.pv = futureValues.get(0);
+                for (int i = 0; i < msg.getFutureValues().size(); i++) {
+                    Instance nextInstance = instances.computeIfAbsent(msg.getInstance() + i, k -> new Instance());
+                    nextInstance.initProposer(instance.pn, futureValues.get(i));
+                    for (Host acceptor : membership) {
+                        logger.debug("Sending: {} to {}", new AcceptMessage(msg.getInstance() + i, nextInstance.pn, nextInstance.pv), acceptor);
+                        sendMessage(new AcceptMessage(msg.getInstance() + i, nextInstance.pn, nextInstance.pv), acceptor);
+                    }
+                }
+            }
+
+            Optional<PrepareOkMessage> op = instance.pQuorum.stream().max(Comparator.comparingInt(PrepareOkMessage::getNa));
+
+            if (op.get().getVa() != null) {
+                instance.pv = op.get().getVa();
+            }
 
 
             for (Host acceptor : membership) {
-                logger.debug("Sending: {} to {}", new AcceptMessage(msg.getInstance(), instance.pn, instance.pv), acceptor);
+                logger.debug("Sending: {} to {}", new AcceptMessage(msg.getInstance() + futureValues.size(), instance.pn, instance.pv), acceptor);
                 sendMessage(new AcceptMessage(msg.getInstance(), instance.pn, instance.pv),
                         acceptor);
             }
+
+
+
         }
     }
 
