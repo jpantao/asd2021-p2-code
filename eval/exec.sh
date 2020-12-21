@@ -112,7 +112,7 @@ do
 			java \
 				-Dlog4j.configurationFile=eval/server/log4j2.xml \
 				-DlogFilename=eval/logs/${expname}/server_${nthreads}_${nservers}_${servernode} \
-				-cp eval/server/asdProj2.jar Main -conf eval/server/config.properties server_port=${server_port} \
+				-cp eval/server/asdProj2.jar Main -conf eval/server/${expname}.properties server_port=${server_port} \
 				n=$(($i + 1)) \
 				p2p_port=${p2p_port} interface=bond0 \
 				initial_membership=${servers_p2p}" 2>&1 | sed "s/^/[s-$servernode] /" &
@@ -154,7 +154,7 @@ do
 done
 echo "Servers Killed"
 
-sleep 1
+sleep 30
 
 echo "Done!"
 
