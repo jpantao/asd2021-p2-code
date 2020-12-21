@@ -241,9 +241,9 @@ public class StateMachine extends GenericProtocol {
             return; //I'm still the leader
 
         leader = notification.getLeader();
+        // nextInstance = notification.getInstance() + 1;
         pendingOps.removeAll(rediretOps);
         rediretOps.clear();
-        //TODO BEFORE TESTING MULTIPAXOS: send instance along with the leader
     }
 
     /*--------------------------------- Messages -------------------------------------- */

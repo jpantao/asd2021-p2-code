@@ -97,6 +97,7 @@ public class Paxos extends GenericProtocol {
         if (instance.decision == null
                 && instance.lQuorum.size() > membership.size() / 2) {
             instance.decision = instance.lva;
+            cancelTimer(roundTimer);
             triggerNotification(new DecidedNotification(executed+1, instance.decision));
         }
     }
@@ -113,7 +114,7 @@ public class Paxos extends GenericProtocol {
             instance.initProposer(n, request.getOperation());
 
         for (Host acceptor : membership) {
-            logger.debug("Sending: {} to {}", new PrepareMessage(request.getInstance(), instance.pn), acceptor);
+//            logger.debug("Sending: {} to {}", new PrepareMessage(request.getInstance(), instance.pn), acceptor);
             sendMessage(new PrepareMessage(request.getInstance(), instance.pn), acceptor);
         }
 
@@ -139,7 +140,7 @@ public class Paxos extends GenericProtocol {
 
         if (msg.getN() > instance.anp) {
             instance.anp = msg.getN();
-            logger.debug("Sending: {} to {}", new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava), from);
+//            logger.debug("Sending: {} to {}", new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava), from);
             sendMessage(new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava), from);
         }
     }
@@ -152,19 +153,16 @@ public class Paxos extends GenericProtocol {
             return;
 
         instance.pQuorum.add(msg);
-        if (!instance.lockedIn
-                && instance.pQuorum.size() > membership.size() / 2) {
-            Optional<PrepareOkMessage> op = instance.pQuorum.stream()
-                    .max(Comparator.comparingInt(PrepareOkMessage::getNa));
-            if(op.get().getVa() != null)
-                instance.pv = op.get().getVa();
-            instance.lockedIn = true;
-
+        if (instance.pQuorum.size() == membership.size() / 2 + 1) {
+            instance.pQuorum.stream()
+                    .filter(op -> op.getVa() != null)                                       // filter out all messages without va
+                    .max(Comparator.comparingInt(PrepareOkMessage::getNa))                  // get message with highest na
+                    .ifPresent(prepareOkMessage -> instance.pv = prepareOkMessage.getVa()); // if found set pv to received va
 
             for (Host acceptor : membership) {
-                logger.debug("Sending: {} to {}", new AcceptMessage(msg.getInstance(), instance.pn, instance.pv), acceptor);
-                sendMessage(new AcceptMessage(msg.getInstance(), instance.pn, instance.pv),
-                        acceptor);
+//                logger.debug("Sending: {} to {}",
+//                        new AcceptMessage(msg.getInstance(), instance.pn, instance.pv), acceptor);
+                sendMessage(new AcceptMessage(msg.getInstance(), instance.pn, instance.pv), acceptor);
             }
         }
     }
@@ -180,9 +178,9 @@ public class Paxos extends GenericProtocol {
             instance.ana = msg.getN();
             instance.ava = msg.getV();
             for (Host learner : membership) {
-                logger.debug("Sending: {} to {}", new AcceptOkMessage(msg.getInstance(), instance.ana, instance.ava), learner);
-                sendMessage(new AcceptOkMessage(msg.getInstance(), instance.ana, instance.ava),
-                        learner);
+//                logger.debug("Sending: {} to {}",
+//                        new AcceptOkMessage(msg.getInstance(), instance.ana, instance.ava), learner);
+                sendMessage(new AcceptOkMessage(msg.getInstance(), instance.ana, instance.ava), learner);
             }
         }
     }
@@ -216,11 +214,11 @@ public class Paxos extends GenericProtocol {
     /* -------------------------------- Timers ------------------------------------- */
 
     private void uponRoundTimeout(RoundTimer timer, long timerID) {
+        logger.debug("Round timed out, resending prepares");
         Instance instance = instances.get(timer.getInstance());
         //getNextN
         instance.pn += membership.size(); //TODO: can generate conflicts and is unfair
         instance.pQuorum.clear();
-        instance.lockedIn = false;
         for (Host acceptor : membership)
             sendMessage(new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
         roundTimer = setupTimer(new RoundTimer(timer.getInstance()), roundTimeout);

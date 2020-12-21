@@ -13,7 +13,6 @@ public class Instance {
     Integer pn;
     byte[] pv;
     Set<PrepareOkMessage> pQuorum;
-    boolean lockedIn;
 
     // acceptor
     Integer anp;
@@ -33,7 +32,6 @@ public class Instance {
         this.pn = n;
         this.pv = v;
         this.pQuorum = new HashSet<>();
-        this.lockedIn = false;
     }
 
     void initAcceptor(){
