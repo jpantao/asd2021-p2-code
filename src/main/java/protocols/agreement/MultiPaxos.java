@@ -160,12 +160,12 @@ public class MultiPaxos extends GenericProtocol {
             return;
 
         instance.pQuorum.add(msg);
-        if (!instance.lockedIn && instance.pQuorum.size() > membership.size() / 2) {
+        if (instance.pQuorum.size() == membership.size() / 2 + 1) {
             Optional<PrepareOkMessage> op = instance.pQuorum.stream()
                     .max(Comparator.comparingInt(PrepareOkMessage::getNa));
             if (op.get().getVa() != null)
                 instance.pv = op.get().getVa();
-            instance.lockedIn = true;
+
             leader = self;
             triggerNotification(new LeaderElectedNotification(self, msg.getInstance()));
 
@@ -243,7 +243,6 @@ public class MultiPaxos extends GenericProtocol {
         //getNextN
         instance.pn += membership.size(); //TODO: can generate conflicts and is unfair
         instance.pQuorum.clear();
-        instance.lockedIn = false;
         for (Host acceptor : membership)
             sendMessage(new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
         roundTimer = setupTimer(new RoundTimer(timer.getInstance()), roundTimeout);
