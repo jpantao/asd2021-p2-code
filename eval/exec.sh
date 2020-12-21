@@ -104,7 +104,7 @@ sleep 5
 # ----------------------------------- START EXP -------------------------------
 
 
-echo -e $BLUE "Starting servers and sleeping 100" $NC
+echo -e $BLUE "Starting servers and sleeping 30" $NC
 i=0
 for servernode in $servernodes
 do
@@ -120,14 +120,14 @@ do
 	i=$(($i + 1))
 done
 
-sleep 100
+sleep 30
 
-echo -e $BLUE "Starting clients and sleeping 12000" $NC
+echo -e $BLUE "Starting clients and sleeping 200" $NC
 
 for node in $clientnodes
 do
 	oarsh $node "mkdir -p eval/logs/${expname}; \
-		mkdir -p results/${expname}; \
+		mkdir -p eval/results/${expname}; \
 		java -Dlog4j.configurationFile=eval/client/log4j2.xml \
 				-DlogFilename=eval/logs/${expname}/client_${nthreads}_${nservers}_${node} \
 				-cp eval/client/asd-client.jar site.ycsb.Client -t -s -P eval/client/config.properties \
@@ -136,7 +136,7 @@ do
 				> eval/results/${expname}/${nthreads}_${nservers}_${node}.log" 2>&1 | sed "s/^/[c-$node] /" &
 done
 
-sleep 500
+sleep 200
 
 echo "Killing clients"
 for node in $clientnodes

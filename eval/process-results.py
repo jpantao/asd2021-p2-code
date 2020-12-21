@@ -9,7 +9,7 @@ PAXOS_DIR = "./results/paxos"
 MPAXOS_DIR = "./results/multi-paxos"
 
 NSERVERS = 3
-CLIENTS = ['node12']
+CLIENTS = ['node16']
 NTHREADS = [3, 6, 9, 12, 15, 18, 21, 24, 27, 30]
 
 
@@ -42,7 +42,7 @@ def generate_plot(throughput_values, avglatency_values, title):
     plt.title(title)
     plt.xlabel("Throughput (ops/sec)")
     plt.ylabel("Latency (ms)")
-    plt.savefig(f'plots/{title}.pdf')
+    plt.savefig(f'plots/{title.lower()}.pdf')
     plt.show()
 
 

@@ -62,7 +62,7 @@ public class StateMachine extends GenericProtocol {
     private final short agreement;
     private Host leader;
 
-    private final Set<Operation> rediretOps;
+    private final Set<Operation> redirectOps;
     private final Deque<Operation> pendingOps;
     private int nextInstance;
 
@@ -78,7 +78,7 @@ public class StateMachine extends GenericProtocol {
         this.connRetryTimeout = Integer.parseInt(props.getProperty("conn_retry_timeout"));
         this.nopTimeout = Integer.parseInt(props.getProperty("nop_timeout"));
 
-        this.rediretOps = new HashSet<>();
+        this.redirectOps = new HashSet<>();
         this.pendingOps = new LinkedList<>();
         this.nextInstance = 0;
 
@@ -210,7 +210,7 @@ public class StateMachine extends GenericProtocol {
 
         if (op.equals(pendingOps.peek()))
             pendingOps.poll();
-        rediretOps.remove(op);
+        redirectOps.remove(op);
 
         if (op instanceof Nop)
             logger.debug("Instance: {} -> Decided Nop", notification.getInstance());
@@ -242,8 +242,8 @@ public class StateMachine extends GenericProtocol {
 
         leader = notification.getLeader();
         // nextInstance = notification.getInstance() + 1;
-        pendingOps.removeAll(rediretOps);
-        rediretOps.clear();
+        pendingOps.removeAll(redirectOps);
+        redirectOps.clear();
         proposeNext();
     }
 
@@ -273,7 +273,7 @@ public class StateMachine extends GenericProtocol {
     private void uponRedirect(RedirectMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received message: {}", msg);
 
-        if(rediretOps.add(msg.getOperation()))
+        if(redirectOps.add(msg.getOperation()))
             newProposal(msg.getOperation());
     }
 
