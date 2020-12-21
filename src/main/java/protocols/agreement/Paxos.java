@@ -139,8 +139,8 @@ public class Paxos extends GenericProtocol {
 
         if (msg.getN() > instance.anp) {
             instance.anp = msg.getN();
-            logger.debug("Sending: {} to {}", new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava, inst, futureValues), from);
-            sendMessage(new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava, inst, futureValues), from);
+            logger.debug("Sending: {} to {}", new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava), from);
+            sendMessage(new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava), from);
         }
     }
 

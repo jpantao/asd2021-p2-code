@@ -80,13 +80,13 @@ public class MultiPaxos extends GenericProtocol {
         /*---------------------- Register Message Serializers ----------------------- */
 
         registerMessageSerializer(cId, PrepareMessage.MSG_ID, PrepareMessage.serializer);
-        registerMessageSerializer(cId, PrepareOkMessage.MSG_ID, PrepareOkMessage.serializer);
+        registerMessageSerializer(cId, MPPrepareOkMessage.MSG_ID, MPPrepareOkMessage.serializer);
         registerMessageSerializer(cId, AcceptMessage.MSG_ID, AcceptMessage.serializer);
         registerMessageSerializer(cId, AcceptOkMessage.MSG_ID, AcceptOkMessage.serializer);
         /*---------------------- Register Message Handlers -------------------------- */
         try {
             registerMessageHandler(cId, PrepareMessage.MSG_ID, this::uponPrepare);
-            registerMessageHandler(cId, PrepareOkMessage.MSG_ID, this::uponPrepareOk);
+            registerMessageHandler(cId, MPPrepareOkMessage.MSG_ID, this::uponPrepareOk);
             registerMessageHandler(cId, AcceptMessage.MSG_ID, this::uponAccept);
             registerMessageHandler(cId, AcceptOkMessage.MSG_ID, this::uponAcceptOk);
         } catch (HandlerRegistrationException e) {
@@ -165,12 +165,12 @@ public class MultiPaxos extends GenericProtocol {
             for (int i = 0; i < inst; i++)
                 futureValues.add(instances.get(i).decision);
 
-            logger.debug("Sending: {} to {}", new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava, futureValues), from);
-            sendMessage(new PrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava, futureValues), from);
+            logger.debug("Sending: {} to {}", new MPPrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava, futureValues), from);
+            sendMessage(new MPPrepareOkMessage(msg.getInstance(), instance.anp, instance.ana, instance.ava, futureValues), from);
         }
     }
 
-    private void uponPrepareOk(PrepareOkMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponPrepareOk(MPPrepareOkMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received: {} from {}", msg, from);
         Instance instance = instances.computeIfAbsent(msg.getInstance(), k -> new Instance());
 

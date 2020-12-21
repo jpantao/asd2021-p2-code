@@ -9,7 +9,7 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 
-public class PrepareOkMessage extends ProtoMessage {
+public class MPPrepareOkMessage extends ProtoMessage {
     public final static short MSG_ID = 112;
 
     private final int ins;
@@ -18,14 +18,16 @@ public class PrepareOkMessage extends ProtoMessage {
 
     private final int na;
     private final byte[] va;
+    private final List<byte[]> futureValues;
 
 
-    public PrepareOkMessage(int ins, int n, int na, byte[] v) {
+    public MPPrepareOkMessage(int ins, int n, int na, byte[] v, List<byte[]> futureValues) {
         super(MSG_ID);
         this.ins = ins;
         this.n = n;
         this.na = na;
         this.va = v;
+        this.futureValues = futureValues;
     }
 
     public int getInstance() {
@@ -44,6 +46,9 @@ public class PrepareOkMessage extends ProtoMessage {
         return va;
     }
 
+    public List<byte[]> getFutureValues() {
+        return futureValues;
+    }
 
     @Override
     public String toString() {
@@ -52,12 +57,13 @@ public class PrepareOkMessage extends ProtoMessage {
                 ", n=" + n +
                 ", na=" + na +
                 ", va=" + Arrays.hashCode(va) +
+                ", futureValues=" + futureValues.hashCode() +
                 '}';
     }
 
-    public static ISerializer<PrepareOkMessage> serializer = new ISerializer<PrepareOkMessage>() {
+    public static ISerializer<MPPrepareOkMessage> serializer = new ISerializer<MPPrepareOkMessage>() {
         @Override
-        public void serialize(PrepareOkMessage msg, ByteBuf byteBuf) throws IOException {
+        public void serialize(MPPrepareOkMessage msg, ByteBuf byteBuf) throws IOException {
             if (msg.va != null) {
                 byteBuf.writeBoolean(true);
                 byteBuf.writeInt(msg.va.length);
@@ -68,10 +74,17 @@ public class PrepareOkMessage extends ProtoMessage {
             byteBuf.writeInt(msg.ins);
             byteBuf.writeInt(msg.n);
             byteBuf.writeInt(msg.na);
+            byteBuf.writeInt(msg.futureValues.size());
+            if (msg.futureValues.size() > 0) {
+                for (byte[] v : msg.futureValues) {
+                    byteBuf.writeInt(v.length);
+                    byteBuf.writeBytes(v);
+                }
+            }
         }
 
         @Override
-        public PrepareOkMessage deserialize(ByteBuf byteBuf) throws IOException {
+        public MPPrepareOkMessage deserialize(ByteBuf byteBuf) throws IOException {
 
             byte[] v = null;
             if (byteBuf.readBoolean()) {
@@ -82,8 +95,14 @@ public class PrepareOkMessage extends ProtoMessage {
             int ins = byteBuf.readInt();
             int n = byteBuf.readInt();
             int na = byteBuf.readInt();
-
-            return new PrepareOkMessage(ins, n, na, v);
+            List<byte[]> future_values = new LinkedList<>();
+            int future_values_size = byteBuf.readInt();
+            for (int i = 0; i < future_values_size; i++) {
+                byte[] value = new byte[byteBuf.readInt()];
+                byteBuf.readBytes(value);
+                future_values.add(value);
+            }
+            return new MPPrepareOkMessage(ins, n, na, v, future_values);
         }
     };
 }
