@@ -198,7 +198,8 @@ public class StateMachine extends GenericProtocol {
         logger.debug("Received request: " + request);
 
         waitingState.computeIfPresent(request.getInstance(), (instance, node) -> {
-            sendMessage(new JoinedMessage(leader, instance, request.getState()), node);
+            Host l = agreement == MultiPaxos.PROTOCOL_ID ? leader : null;
+            sendMessage(new JoinedMessage(l, instance, request.getState()), node);
             return null; //returning null removes the entry
         });
     }

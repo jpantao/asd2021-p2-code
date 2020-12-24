@@ -120,7 +120,7 @@ do
 	i=$(($i + 1))
 done
 
-sleep 30
+sleep 15
 
 echo -e $BLUE "Starting clients and sleeping 200" $NC
 
@@ -136,7 +136,7 @@ do
 				> eval/results/${expname}/${nthreads}_${nservers}_${node}.log" 2>&1 | sed "s/^/[c-$node] /" &
 done
 
-sleep 200
+sleep 400
 
 echo "Killing clients"
 for node in $clientnodes
@@ -154,7 +154,7 @@ do
 done
 echo "Servers Killed"
 
-sleep 30
+sleep 15
 
 echo "Done!"
 
