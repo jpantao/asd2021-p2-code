@@ -180,8 +180,8 @@ public class MultiPaxos extends GenericProtocol {
         if (instance.pQuorum.size() == membership.size() / 2 + 1) {
             Instance finalInstance = instance;
             instance.pQuorum.stream()
-                    .filter(op -> op.getValue() != null)               // filter out all messages without va
-                    .max(Comparator.comparingInt(Pair::getKey))        // get message with highest na
+                    .filter(op -> op.getValue() != null)                    // filter out all messages without va
+                    .max(Comparator.comparingInt(Pair::getKey))             // get message with highest na
                     .ifPresent(pair -> finalInstance.pv = pair.getValue()); // if found set pv to received va
 
             for (Host acceptor : membership) {

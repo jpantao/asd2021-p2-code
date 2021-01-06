@@ -36,6 +36,7 @@ import java.net.UnknownHostException;
 import java.util.*;
 
 public class StateMachine extends GenericProtocol {
+
     private static final Logger logger = LogManager.getLogger(StateMachine.class);
 
     private enum State {JOINING, ACTIVE}

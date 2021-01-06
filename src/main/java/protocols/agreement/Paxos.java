@@ -52,7 +52,6 @@ public class Paxos extends GenericProtocol {
         subscribeNotification(ExecutedNotification.NOTIFICATION_ID, this::uponExecuted);
     }
 
-
     @Override
     public void init(Properties props) {
         //Nothing to do here, we just wait for events from the application or agreement
