@@ -4,6 +4,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 
 import java.io.IOException;
+import java.util.Objects;
+
 
 public abstract class Operation {
 
@@ -53,6 +55,19 @@ public abstract class Operation {
 
     public Type getType() {
         return type;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Operation)) return false;
+        Operation operation = (Operation) o;
+        return type == operation.type;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(type);
     }
 
     public static byte[] serialize(Operation operation) {

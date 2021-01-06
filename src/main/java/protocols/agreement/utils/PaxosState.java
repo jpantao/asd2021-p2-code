@@ -10,7 +10,6 @@ import java.util.Set;
 public class PaxosState {
 
 
-
     private int np;
     private int na;
     private byte[] va;

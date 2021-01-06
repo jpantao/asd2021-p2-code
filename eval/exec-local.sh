@@ -115,7 +115,7 @@ while [ $i -lt $nclients ]; do
     i=$(($i + 1))
 done
 
-sleep 300
+sleep 400
 kill $(ps aux | grep 'asdProj2.jar' | awk '{print $2}')
 kill $(ps aux | grep 'asd-client.jar' | awk '{print $2}')
 echo "All processes done!"

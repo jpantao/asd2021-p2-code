@@ -1,15 +1,18 @@
 package protocols.agreement;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.agreement.messages.*;
 import protocols.agreement.notifications.DecidedNotification;
-import protocols.statemachine.notifications.JoinedNotification;
 import protocols.agreement.notifications.LeaderElectedNotification;
+import protocols.agreement.requests.ProposeRequest;
+import protocols.agreement.timers.HeartbeatTimer;
+import protocols.agreement.timers.RoundTimer;
+import protocols.statemachine.notifications.ExecutedNotification;
+import protocols.statemachine.notifications.JoinedNotification;
 import protocols.agreement.requests.AddReplicaRequest;
 import protocols.agreement.requests.RemoveReplicaRequest;
-import protocols.agreement.timers.LeaderTimer;
-import protocols.agreement.utils.PaxosState;
 import protocols.statemachine.notifications.ChannelReadyNotification;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
@@ -26,44 +29,39 @@ public class MultiPaxos extends GenericProtocol {
     public static final short PROTOCOL_ID = 120;
     public static final String PROTOCOL_NAME = "MultiPaxos";
 
-    private Host self; //My own address/port
-
-    private final Map<Integer, PaxosState> instances;
-    private final Set<Host> membership;
+    private SortedMap<Integer, Instance> instances;
+    private Set<Host> membership;
     private final int n;
-    private final int quorumTimeout;
-    private Host leader; //if true it believes he is a leader
-    private byte[] opDecided;
-    private int npDecided;
+    private final int roundTimeout;
+    private long roundTimer;
+    private final int heartbeatTimeout;
+    private long heartbeatTimer;
+    private int executed;
+    private Host leader;
+    private Host self;
+    private Random rand;
 
 
     public MultiPaxos(Properties props) throws IOException, HandlerRegistrationException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.n = Integer.parseInt(props.getProperty("n"));
-        this.quorumTimeout = Integer.parseInt(props.getProperty("quorum_timeout"));
-        this.membership = new HashSet<>();
-        this.instances = new HashMap<>();
+        this.roundTimeout = Integer.parseInt(props.getProperty("round_timeout"));
         this.leader = null;
-        this.opDecided = null;
-        this.npDecided = n;
+        this.heartbeatTimeout = Integer.parseInt(props.getProperty("heartbeat_timeout"));
+        rand = new Random();
 
         /*---------------------- Register Timer Handlers --------------------------- */
-        /*
-        registerTimerHandler(LeaderTimer.TIMER_ID, this::uponLeaderTimeout);
-        registerTimerHandler(QuorumTimer.TIMER_ID, this::uponQuorumTimeout);
-         */
+        registerTimerHandler(HeartbeatTimer.TIMER_ID, this::uponHeartbeat);
+        registerTimerHandler(RoundTimer.TIMER_ID, this::uponRoundTimeout);
 
         /*---------------------- Register Request Handlers ------------------------- */
-        /*
         registerRequestHandler(ProposeRequest.REQUEST_ID, this::uponPropose);
         registerRequestHandler(AddReplicaRequest.REQUEST_ID, this::uponAddReplica);
         registerRequestHandler(RemoveReplicaRequest.REQUEST_ID, this::uponRemoveReplica);
-        */
         /*---------------------- Register Notification Handlers -------------------- */
-         /*
         subscribeNotification(ChannelReadyNotification.NOTIFICATION_ID, this::uponChannelCreated);
-        subscribeNotification(JoinedNotification.NOTIFICATION_ID, this::uponJoinedNotification);
-        */
+        subscribeNotification(JoinedNotification.NOTIFICATION_ID, this::uponJoined);
+        subscribeNotification(ExecutedNotification.NOTIFICATION_ID, this::uponExecuted);
     }
 
     @Override
@@ -80,177 +78,60 @@ public class MultiPaxos extends GenericProtocol {
         /*---------------------- Register Message Serializers ----------------------- */
 
         registerMessageSerializer(cId, PrepareMessage.MSG_ID, PrepareMessage.serializer);
-        registerMessageSerializer(cId, PrepareOkMessage.MSG_ID, PrepareOkMessage.serializer);
-        registerMessageSerializer(cId, MPAcceptMessage.MSG_ID, MPAcceptMessage.serializer);
+        registerMessageSerializer(cId, MPPrepareOkMessage.MSG_ID, MPPrepareOkMessage.serializer);
+        registerMessageSerializer(cId, AcceptMessage.MSG_ID, AcceptMessage.serializer);
         registerMessageSerializer(cId, AcceptOkMessage.MSG_ID, AcceptOkMessage.serializer);
-        registerMessageSerializer(cId, RejectMessage.MSG_ID, RejectMessage.serializer);
-
         /*---------------------- Register Message Handlers -------------------------- */
-            /*
         try {
             registerMessageHandler(cId, PrepareMessage.MSG_ID, this::uponPrepare);
-            registerMessageHandler(cId, PrepareOkMessage.MSG_ID, this::uponPrepareOk);
-            registerMessageHandler(cId, MPAcceptMessage.MSG_ID, this::uponAccept);
+            registerMessageHandler(cId, MPPrepareOkMessage.MSG_ID, this::uponMPPrepareOk);
+            registerMessageHandler(cId, AcceptMessage.MSG_ID, this::uponAccept);
             registerMessageHandler(cId, AcceptOkMessage.MSG_ID, this::uponAcceptOk);
-            registerMessageHandler(cId, RejectMessage.MSG_ID, this::uponReject);
         } catch (HandlerRegistrationException e) {
             throw new AssertionError("Error registering message handler.", e);
         }
-             */
+    }
+
+    /*--------------------------------- Notifications ------------------------------ */
+    private void uponJoined(JoinedNotification notification, short sourceProto) {
+        membership = new HashSet<>(notification.getMembership());
+        executed = notification.getJoinInstance() - 1;
+        instances = new TreeMap<>();
+    }
+
+    private void uponExecuted(ExecutedNotification notification, short sourceProto) {
+        executed = notification.getInstance();
+        Instance instance = instances.get(executed + 1);
+
+        if (instance == null || instance.lna == null)
+            return;
+
+        if (instance.decision == null && instance.lQuorum.size() > membership.size() / 2) {
+            instance.decision = instance.lva;
+            triggerNotification(new DecidedNotification(executed + 1, instance.decision));
+        }
     }
 
     /*--------------------------------- Requests ----------------------------------- */
-    /*
     private void uponPropose(ProposeRequest request, short sourceProto) {
-        PaxosState state = new PaxosState(npDecided, request.getOperation());
-        int instance = request.getInstance();
-        instances.put(instance, state);
-        propose(instance, npDecided, state);
-    }
-    */
-    /*
-        private void propose(int instance, int np, PaxosState state) {
-            state.setNp(np);
-            state.updatePrepareQuorum(self);
-            for (Host p : state.getMembership()) {
-                if (!p.equals(self)) {
-                    if (!leader.equals(self))
-                        sendMessage(new PrepareMessage(instance, np), p);
-                    else
-                        sendMessage(new MPAcceptMessage(instance, np, opDecided, state.getVa()), p);
-                }
-            }
-            long quorumTimer = setupTimer(new QuorumTimer(instance), quorumTimeout);
-            state.setQuorumTimerID(quorumTimer);
+        logger.debug("Propose: {}  - {}", request.getInstance(), Arrays.hashCode(request.getOperation()));
+        Instance instance = instances.computeIfAbsent(request.getInstance(),
+                k -> new Instance());
+        if (instance.decision != null)
+            return; // already decided
+        if (instance.pn == null)
+            instance.initProposer(n, request.getOperation());
+
+        for (Host acceptor : membership) {
+            logger.debug("Sending: {} to {}", new PrepareMessage(request.getInstance(), instance.pn), acceptor);
+            if (leader != null && leader.equals(self))
+                sendMessage(new AcceptMessage(request.getInstance(), instance.pn, instance.pv), acceptor);
+            else
+                sendMessage(new PrepareMessage(request.getInstance(), instance.pn), acceptor);
         }
-    */
-    /*--------------------------------- Messages ----------------------------------- */
-    private void uponPrepare(PrepareMessage msg, Host from, short sourceProto, int channelId) {
-        int instance = msg.getInstance();
-        int np = msg.getN();
-        PaxosState state = instances.get(instance);
-        long leaderTimer;
-        if (state == null) {
-            leader = from;
-            state = new PaxosState(np);
-            instances.put(instance, state);
-//            sendMessage(new PrepareOkMessage(instance, , state.getNa(), state.getVa()), from);
-            leaderTimer = setupTimer(new LeaderTimer(instance), quorumTimeout);
-            state.setLeaderTimerID(leaderTimer);
-            triggerNotification(new LeaderElectedNotification(leader));
-        } else if (np > state.getNp()) {
-            if (state.getLeaderTimerID() > 0)
-                cancelTimer(state.getLeaderTimerID());
-            PaxosState previousState = instances.get(instance - 1);
-            long previousLeaderTimerID = previousState.getLeaderTimerID();
-            if (previousLeaderTimerID > 0) {
-                cancelTimer(previousLeaderTimerID);
-                previousState.setLeaderTimerID(-1);
-            }
-            leader = from;
-            state.setNp(np);
-//            sendMessage(new PrepareOkMessage(instance, n1, state.getNa(), state.getVa()), from);
-            leaderTimer = setupTimer(new LeaderTimer(instance), quorumTimeout);
-            state.setLeaderTimerID(leaderTimer);
-            triggerNotification(new LeaderElectedNotification(leader));
-        } else
-            sendMessage(new RejectMessage(instance), from);
+        roundTimer = setupTimer(new RoundTimer(request.getInstance()), roundTimeout);
     }
 
-    /*
-        private void uponPrepareOk(PrepareOkMessage msg, Host from, short sourceProto, int channelId) {
-            int instance = msg.getInstance();
-            PaxosState state = instances.get(instance);
-            state.updatePrepareQuorum(from);
-            int naReceived = msg.getNa();
-            byte[] vaReceived = msg.getVa();
-            int highestNa = state.getHighestNa();
-            if (naReceived > highestNa) {
-                state.setHighestNa(naReceived);
-                state.setHighestVa(vaReceived);
-            }
-            if (state.hasPrepareQuorum()) {
-                leader = self;
-                triggerNotification(new LeaderElectedNotification(self));
-                state.updateAcceptQuorum(self);
-                cancelTimer(state.getQuorumTimerID());
-                int np = state.getNp();
-                byte[] v = state.getHighestVa();
-                for (Host p : state.getMembership()) {
-                    if (!p.equals(self))
-                        sendMessage(new MPAcceptMessage(instance, np, null, v), p);
-                }
-                long quorumTimer = setupTimer(new QuorumTimer(instance), quorumTimeout);
-                state.setQuorumTimerID(quorumTimer);
-            }
-        }
-    */
-    private void uponAccept(MPAcceptMessage msg, Host from, short sourceProto, int channelId) {
-        int instance = msg.getInstance();
-        int np = msg.getN();
-        byte[] opDecided = msg.getOpDecided();
-        byte[] newOp = msg.getNewOp();
-        PaxosState state = instances.get(instance);
-        if (opDecided != null)
-            triggerNotification(new DecidedNotification(np, opDecided));
-        if (state == null) {
-            leader = from;
-            state = new PaxosState(np, newOp);
-            instances.put(instance, state);
-        }
-        if (np >= state.getNp()) {
-            if (state.getLeaderTimerID() > 0)
-                cancelTimer(state.getLeaderTimerID());
-            PaxosState previousState = instances.get(instance - 1);
-            long previousLeaderTimerID = previousState.getLeaderTimerID();
-            if (previousLeaderTimerID > 0) {
-                cancelTimer(previousLeaderTimerID);
-                previousState.setLeaderTimerID(-1);
-            }
-            leader = from;
-            triggerNotification(new LeaderElectedNotification(from));
-            long leaderTimer = setupTimer(new LeaderTimer(instance), quorumTimeout);
-            state.setLeaderTimerID(leaderTimer);
-
-            state.setNa(np);
-            state.setVa(newOp);
-            sendMessage(new AcceptOkMessage(instance, np, newOp), from);
-        } else
-            sendMessage(new RejectMessage(instance), from);
-    }
-
-    /*
-        private void uponAcceptOk(AcceptOkMessage msg, Host from, short sourceProto, int channelId) {
-            int instance = msg.getInstance();
-            byte[] v = msg.getV();
-            int n = msg.getN();
-            PaxosState state = instances.get(instance);
-
-            if (n > state.getNa()) {
-                state.setNa(n);
-                state.setVa(v);
-                state.resetAcceptQuorum();
-            }
-
-            state.updateAcceptQuorum(from);
-            if (!state.accepted() && state.hasAcceptQuorum()) {
-                cancelTimer(state.getQuorumTimerID());
-                state.accept();
-                triggerNotification(new DecidedNotification(instance, v));
-                opDecided = v;
-                npDecided = n;
-
-            }
-        }
-    */
-    private void uponReject(RejectMessage msg, Host from, short sourceProto, int channelId) {
-        leader = null;
-        cancelTimer(instances.get(msg.getInstance()).getQuorumTimerID());
-    }
-
-    private void uponJoinedNotification(JoinedNotification notification, short sourceProto) {
-        membership.addAll(notification.getMembership());
-    }
 
     private void uponRemoveReplica(RemoveReplicaRequest request, short sourceProto) {
         membership.remove(request.getReplica());
@@ -260,22 +141,136 @@ public class MultiPaxos extends GenericProtocol {
         membership.add(request.getReplica());
     }
 
+    /*--------------------------------- Messages ----------------------------------- */
+
+    private void uponPrepare(PrepareMessage msg, Host from, short sourceProto, int channelId) {
+        logger.debug("Received: {} from {}", msg, from);
+        Instance instance = instances.computeIfAbsent(msg.getInstance(),
+                k -> new Instance());
+        if (instance.anp == null)
+            instance.initAcceptor();
+
+        if (msg.getN() > instance.anp) {
+            leader = from;
+            triggerNotification(new LeaderElectedNotification(from, msg.getInstance()));
+            instance.anp = msg.getN();
+
+            //Leader behind
+            List<PrepareOkMessage> futurePrepareOks = new LinkedList<>();
+            SortedMap<Integer, Instance> futureEntries = instances.tailMap(msg.getInstance());
+            for (Map.Entry<Integer, Instance> entry : futureEntries.entrySet()) {
+                futurePrepareOks.add(new PrepareOkMessage(entry.getKey(), msg.getN(), entry.getValue().ana, entry.getValue().ava));
+            }
+
+            logger.debug("Sending: {} to {}", new MPPrepareOkMessage(msg.getInstance(), instance.anp, futurePrepareOks), from);
+            sendMessage(new MPPrepareOkMessage(msg.getInstance(), instance.anp, futurePrepareOks), from);
+
+        }
+    }
+
+    private void uponMPPrepareOk(MPPrepareOkMessage msg, Host from, short sourceProto, int channelId) {
+        logger.debug("Received: {} from {}", msg, from);
+        Instance instance = instances.computeIfAbsent(msg.getInstance(), k -> new Instance());
+        if (msg.getN() != instance.pn)
+            return;
+        List<PrepareOkMessage> futurePrepareOks = msg.getFuturePrepareOks();
+        for (PrepareOkMessage futurePrepareOk : futurePrepareOks)
+            updateInstances(instance.pn, futurePrepareOk);
+        instance = instances.get(msg.getInstance());
+        if (instance.pQuorum.size() == membership.size() / 2 + 1) {
+            Instance finalInstance = instance;
+            instance.pQuorum.stream()
+                    .filter(op -> op.getValue() != null)               // filter out all messages without va
+                    .max(Comparator.comparingInt(Pair::getKey))        // get message with highest na
+                    .ifPresent(pair -> finalInstance.pv = pair.getValue()); // if found set pv to received va
+
+            for (Host acceptor : membership) {
+                logger.debug("Sending: {} to {}", new AcceptMessage(msg.getInstance(), instance.pn, instance.pv), acceptor);
+                sendMessage(new AcceptMessage(msg.getInstance(), instance.pn, instance.pv), acceptor);
+            }
+        }
+    }
+
+    private void updateInstances(int pn, PrepareOkMessage msg) {
+        Instance instance = instances.get(msg.getInstance());
+        if (instance == null) {
+            instance = new Instance();
+            instances.put(msg.getInstance(), instance);
+        }
+        if (instance.pQuorum == null)
+            instance.initProposer(pn, msg.getVa());
+        instance.pQuorum.add(Pair.of(msg.getNa(), msg.getVa()));
+    }
+
+    private void uponAccept(AcceptMessage msg, Host from, short sourceProto, int channelId) {
+        logger.debug("Received: {} from {}", msg, from);
+        cancelTimer(heartbeatTimer);
+        Instance instance = instances.computeIfAbsent(msg.getInstance(),
+                k -> new Instance());
+        if (instance.anp == null)
+            instance.initAcceptor();
+
+        if (msg.getN() >= instance.anp) {
+            instance.ana = msg.getN();
+            instance.ava = msg.getV();
+            for (Host learner : membership) {
+                logger.debug("Sending: {} to {}", new AcceptOkMessage(msg.getInstance(), instance.ana, instance.ava), learner);
+                sendMessage(new AcceptOkMessage(msg.getInstance(), instance.ana, instance.ava), learner);
+            }
+        }
+        heartbeatTimer = setupTimer(new HeartbeatTimer(msg.getInstance()), heartbeatTimeout);
+    }
+
+    private void uponAcceptOk(AcceptOkMessage msg, Host from, short sourceProto, int channelId) {
+        logger.debug("Received: {} from {}", msg, from);
+        Instance instance = instances.computeIfAbsent(msg.getInstance(),
+                k -> new Instance());
+        if (instance.lna == null)
+            instance.initLearner();
+
+        if (msg.getN() > instance.lna) {
+            instance.lna = msg.getN();
+            instance.lva = msg.getV();
+            instance.lQuorum.clear();
+        } else if (msg.getN() < instance.lna)
+            return;
+
+        instance.lQuorum.add(msg);
+
+        if (executed < msg.getInstance() - 1)
+            return;
+        if (instance.decision == null && instance.lQuorum.size() > membership.size() / 2) {
+            instance.decision = instance.lva;
+            cancelTimer(roundTimer);
+            triggerNotification(new DecidedNotification(msg.getInstance(), instance.decision));
+        }
+    }
 
     /* -------------------------------- Timers ------------------------------------- */
-    /*
-    private void uponLeaderTimeout(LeaderTimer leaderTimer, long timerID) {
+
+    private void uponRoundTimeout(RoundTimer timer, long timerID) {
+        Instance instance = instances.get(timer.getInstance());
+        if (leader == null) {
+            instance.pn += membership.size();
+            instance.pQuorum.clear();
+            for (Host acceptor : membership) {
+                logger.debug("Sending: {} to {}", new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
+                sendMessage(new PrepareMessage(timer.getInstance(), instance.pn), acceptor);
+                roundTimer = setupTimer(new RoundTimer(timer.getInstance()), roundTimeout);
+            }
+        } else if (leader.equals(self)) {
+            for (Host acceptor : membership) {
+                logger.debug("Sending: {} to {}", new AcceptMessage(timer.getInstance(), instance.pn, instance.pv), acceptor);
+                sendMessage(new AcceptMessage(timer.getInstance(), instance.pn, instance.pv), acceptor);
+            }
+            roundTimer = setupTimer(new RoundTimer(timer.getInstance()), roundTimeout);
+        }
+    }
+
+    private void uponHeartbeat(HeartbeatTimer timer, long timerID) {
+        Instance instance = instances.get(timer.getInstance());
+        instance.initProposer(n, instance.ava);
         leader = null;
-        timeout(leaderTimer.getInstance());
+        roundTimer = setupTimer(new RoundTimer(timer.getInstance()), roundTimeout + rand.nextInt(roundTimeout));
     }
-
-    private void timeout(int instance) {
-        PaxosState state = instances.get(instance);
-        if (!state.accepted())
-            propose(instance, state.getNp() + membership.size() + n, state);
-    }
-    private void uponQuorumTimeout(QuorumTimer quorumTimer, long timerID) {
-        timeout(quorumTimer.getInstance());
-    }
-    */
-
 }

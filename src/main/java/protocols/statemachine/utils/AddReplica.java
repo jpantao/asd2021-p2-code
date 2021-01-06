@@ -4,6 +4,7 @@ import io.netty.buffer.ByteBuf;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class AddReplica extends Operation {
 
@@ -25,6 +26,19 @@ public class AddReplica extends Operation {
                 '}';
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof AddReplica)) return false;
+        AddReplica that = (AddReplica) o;
+        return node.equals(that.node);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(node);
+    }
+
     public static Serializer<Operation> serializer = new Serializer<Operation>() {
         @Override
         public void serialize(Operation operation, ByteBuf buf) throws IOException {
@@ -36,6 +50,5 @@ public class AddReplica extends Operation {
             return new AddReplica(Host.serializer.deserialize(buf));
         }
     };
-
 
 }

@@ -10,7 +10,7 @@ public class RemReplica extends Operation {
     private final Host node;
 
     public RemReplica(Host node) {
-        super(Type.ADD_REP);
+        super(Type.REM_REP);
         this.node = node;
     }
 
@@ -23,6 +23,14 @@ public class RemReplica extends Operation {
         return "RemReplica{" +
                 "node=" + node +
                 '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof RemReplica)) return false;
+        RemReplica that = (RemReplica) o;
+        return node.equals(that.node);
     }
 
     public static Serializer<Operation> serializer = new Serializer<Operation>() {

@@ -1,11 +1,11 @@
 package protocols.agreement.messages;
 
 import io.netty.buffer.ByteBuf;
-import org.apache.commons.codec.binary.Hex;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.network.ISerializer;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class MPAcceptMessage extends ProtoMessage {
 
@@ -13,15 +13,18 @@ public class MPAcceptMessage extends ProtoMessage {
 
     private final int ins;
     private final int n;
-    private final byte[] opDecided;
-    private final byte[] newOp;
+    private final int lastn;
+    private final byte[] lastv;
+    private final byte[] v;
 
-    public MPAcceptMessage(int ins, int n, byte[] opDecided, byte[] newOp) {
+
+    public MPAcceptMessage(int ins, int n, int lastn, byte[] lastv, byte[] v) {
         super(MSG_ID);
         this.ins = ins;
         this.n = n;
-        this.opDecided = opDecided;
-        this.newOp = newOp;
+        this.lastn = lastn;
+        this.lastv = lastv;
+        this.v = v;
     }
 
     public int getInstance() {
@@ -32,12 +35,16 @@ public class MPAcceptMessage extends ProtoMessage {
         return n;
     }
 
-    public byte[] getOpDecided() {
-        return opDecided;
+    public byte[] getLastV() {
+        return lastv;
     }
 
-    public byte[] getNewOp() {
-        return newOp;
+    public int getLastN() {
+        return lastn;
+    }
+
+    public byte[] getV() {
+        return v;
     }
 
     @Override
@@ -45,8 +52,9 @@ public class MPAcceptMessage extends ProtoMessage {
         return "MPAcceptMessage{" +
                 "ins=" + ins +
                 ", n=" + n +
-                ", opDecided=" + Hex.encodeHexString(opDecided) +
-                ", newOp=" + Hex.encodeHexString(newOp) +
+                ", lastn=" + lastn +
+                ", lastv=" + Arrays.toString(lastv) +
+                ", v=" + Arrays.toString(v) +
                 '}';
     }
 
@@ -55,21 +63,23 @@ public class MPAcceptMessage extends ProtoMessage {
         public void serialize(MPAcceptMessage msg, ByteBuf byteBuf) throws IOException {
             byteBuf.writeInt(msg.ins);
             byteBuf.writeInt(msg.n);
-            byteBuf.writeInt(msg.opDecided.length);
-            byteBuf.writeInt(msg.newOp.length);
-            byteBuf.writeBytes(msg.opDecided);
-            byteBuf.writeBytes(msg.newOp);
+            byteBuf.writeInt(msg.lastn);
+            byteBuf.writeInt(msg.lastv.length);
+            byteBuf.writeInt(msg.v.length);
+            byteBuf.writeBytes(msg.lastv);
+            byteBuf.writeBytes(msg.v);
         }
 
         @Override
         public MPAcceptMessage deserialize(ByteBuf byteBuf) throws IOException {
             int ins = byteBuf.readInt();
             int n = byteBuf.readInt();
-            byte[] opDecided = new byte[byteBuf.readInt()];
-            byte[] newOp = new byte[byteBuf.readInt()];
-            byteBuf.readBytes(opDecided);
-            byteBuf.readBytes(newOp);
-            return new MPAcceptMessage(ins, n, opDecided,newOp);
+            int ln = byteBuf.readInt();
+            byte[] lv = new byte[byteBuf.readInt()];
+            byte[] v = new byte[byteBuf.readInt()];
+            byteBuf.readBytes(lv);
+            byteBuf.readBytes(v);
+            return new MPAcceptMessage(ins, n, ln, lv, v);
         }
     };
 }

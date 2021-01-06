@@ -78,7 +78,6 @@ public class PrepareOkMessage extends ProtoMessage {
                 byteBuf.readBytes(v);
             }
 
-
             int ins = byteBuf.readInt();
             int n = byteBuf.readInt();
             int na = byteBuf.readInt();

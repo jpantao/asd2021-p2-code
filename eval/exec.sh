@@ -74,11 +74,11 @@ if (( $nclients + $nservers > $nnodes )); then
 	exit
 fi
 
-clientnodes=`tail -n $nclients <<< $allnodes`
-servernodes=`head -n $nservers <<< $allnodes`
+clientnodes=`head -n $nclients <<< $allnodes`
+servernodes=`tail -n $nservers <<< $allnodes`
 
-mkdir -p logs/${expname}
-mkdir -p results/${expname}
+mkdir -p eval/logs/${expname}
+mkdir -p eval/results/${expname}
 
 servers_p2p=""
 servers_server=""
@@ -104,37 +104,39 @@ sleep 5
 # ----------------------------------- START EXP -------------------------------
 
 
-echo -e $BLUE "Starting servers and sleeping 15" $NC
-
+echo -e $BLUE "Starting servers and sleeping 30" $NC
+i=0
 for servernode in $servernodes
 do
-	oarsh $servernode "mkdir -p logs/${expname}; \
+	oarsh $servernode "mkdir -p eval/logs/${expname}; \
 			java \
-				-Dlog4j.configurationFile=config/log4j2.xml \
-				-DlogFilename=logs/${expname}/server_${nthreads}_${nservers}_${servernode} \
-				-cp server/asdProj2.jar Main -conf config.properties server_port=${server_port} \
+				-Dlog4j.configurationFile=eval/server/log4j2.xml \
+				-DlogFilename=eval/logs/${expname}/server_${nthreads}_${nservers}_${servernode} \
+				-cp eval/server/asdProj2.jar Main -conf eval/server/${expname}.properties server_port=${server_port} \
+				n=$(($i + 1)) \
 				p2p_port=${p2p_port} interface=bond0 \
 				initial_membership=${servers_p2p}" 2>&1 | sed "s/^/[s-$servernode] /" &
 	sleep 1
+	i=$(($i + 1))
 done
 
 sleep 15
 
-echo -e $BLUE "Starting clients and sleeping 70" $NC
+echo -e $BLUE "Starting clients and sleeping 200" $NC
 
 for node in $clientnodes
 do
-	oarsh $node "mkdir -p logs/${expname}; \
-		mkdir -p results/${expname}; \
-		java -Dlog4j.configurationFile=log4j2.xml \
-				-DlogFilename=logs/${expname}/client_${nthreads}_${nservers}_${node} \
-				-cp client/asd-client.jar site.ycsb.Client -t -s -P client/config.properties \
+	oarsh $node "mkdir -p eval/logs/${expname}; \
+		mkdir -p eval/results/${expname}; \
+		java -Dlog4j.configurationFile=eval/client/log4j2.xml \
+				-DlogFilename=eval/logs/${expname}/client_${nthreads}_${nservers}_${node} \
+				-cp eval/client/asd-client.jar site.ycsb.Client -t -s -P eval/client/config.properties \
 				-threads $nthreads -p fieldlength=1000 \
 				-p hosts=$servers_server -p readproportion=50 -p updateproportion=50 \
-				> results/${expname}/${nthreads}_${nservers}_${node}.log" 2>&1 | sed "s/^/[c-$node] /" &
+				> eval/results/${expname}/${nthreads}_${nservers}_${node}.log" 2>&1 | sed "s/^/[c-$node] /" &
 done
 
-sleep 70
+sleep 400
 
 echo "Killing clients"
 for node in $clientnodes
@@ -152,7 +154,7 @@ do
 done
 echo "Servers Killed"
 
-sleep 1
+sleep 15
 
 echo "Done!"
 
